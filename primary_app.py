@@ -144,10 +144,11 @@ PRIMARY_DB = {
     ]
   }
 }
- PRIMARY_DB.update({
-  "PRIMARY_6": {
-    "focus": "Advanced Application & Regional Scope - EAC",
-    "Mathematics": [
+
+PRIMARY_DB.update({
+     "PRIMARY_6": {
+     "focus": "Advanced Application & Regional Scope - EAC",
+     "Mathematics": [
       {"topic": "Ratios and Proportions", "competency": "Learner solves ratio problems", "scenario": "Mixing juice for school party"},
       {"topic": "Sets", "competency": "Learner forms and solves problems using sets", "scenario": "Pupils who like football vs netball"},
       {"topic": "Basic Algebra", "competency": "Learner solves simple algebraic equations", "scenario": "If 2x + 3 = 11, find x"},
