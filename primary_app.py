@@ -203,15 +203,14 @@ def text_to_speech(text):
         return fp
     except: return None
 
-def speech_to_text():
+def speech_to_text_from_audio(audio_bytes): # FIXED FOR CLOUD
     r = sr.Recognizer()
-    with sr.Microphone() as source:
-        st.info("Listening... Speak now")
-        audio = r.listen(source, timeout=5)
+    audio_file = io.BytesIO(audio_bytes)
+    with sr.AudioFile(audio_file) as source:
+        audio = r.record(source)
     try:
         return r.recognize_google(audio)
     except:
-        st.error("Could not understand audio")
         return ""
 
 # ===================== 3. PASSWORD =====================
@@ -247,10 +246,13 @@ tabs = st.tabs(["AI Chat + Voice", "Theory + Practicals", "Quiz + Evaluation", "
 
 with tabs[0]:
     st.header("Ask TeacherK NCDC + Voice")
-    q = st.text_input("Type question or use mic below")
-    if st.button("🎤 Speak Question"):
-        q = speech_to_text()
-        st.text_input("You said:", q, key="voice_q")
+    q = st.text_input("Type question here")
+
+    audio_input = st.audio_input("Or record your question") # FIXED: works on cloud
+    if audio_input:
+        with st.spinner("Transcribing..."):
+            q = speech_to_text_from_audio(audio_input.getvalue())
+            st.success(f"You said: {q}")
 
     if st.button("Ask") and q:
         client = get_client()
