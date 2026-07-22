@@ -177,11 +177,21 @@ def get_client():
     except: st.error("Add GROQ_API_KEY in Streamlit Secrets"); return None
 
 def generate_pdf(content, title):
-    buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
-    c.setFont("Helvetica-Bold", 14); c.drawString(40, height-50, title); y = height - 80; c.setFont("Helvetica", 9)
-    for line in content.split('\n')[:45]: c.drawString(40, y, line[:95]); y -= 14;
-    if y < 50: break
-    c.save(); buffer.seek(0); return buffer
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(40, height-50, title)
+    y = height - 80
+    c.setFont("Helvetica", 9)
+    for line in content.split('\n')[:45]: # FIXED: break is now inside loop
+        c.drawString(40, y, line[:95])
+        y -= 14
+        if y < 50:
+            break
+    c.save()
+    buffer.seek(0)
+    return buffer
 
 # ===================== 3. PASSWORD =====================
 def check_password():
@@ -258,8 +268,12 @@ with tabs[3]:
     if subject == "Mathematics":
         op = st.selectbox("Operation", ["Addition","Subtraction","Multiplication","Division"])
         if st.button("Generate 10 Questions"):
-            for i in range(10): a=random.randint(1,100); b=random.randint(1,20); st.write(f"{i+1}. {a} {op[0]} {b} =?")
-    else: st.info("This tab is for Mathematics only")
+            for i in range(10):
+                a=random.randint(1,100)
+                b=random.randint(1,20)
+                st.write(f"{i+1}. {a} {op[0]} {b} =?")
+    else:
+        st.info("This tab is for Mathematics only")
 
 with tabs[4]:
     st.header("Teacher Tools")
@@ -269,7 +283,8 @@ with tabs[4]:
             if client:
                 prompt = f"{SYSTEM_PROMPT}\nWrite NCDC 2026 lesson plan for P{grade} {subject} Topic: {topic_data['topic']}. Include objectives, materials, steps, assessment."
                 res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}])
-                plan = res.choices[0].message.content; st.write(plan)
+                plan = res.choices[0].message.content
+                st.write(plan)
                 st.download_button("Download PDF", generate_pdf(plan, "Lesson Plan"), "lesson.pdf")
 
         st.divider()
@@ -277,14 +292,18 @@ with tabs[4]:
         pupil_name = st.text_input("Pupil Name")
         marks = st.text_area("Enter marks: Subject, Score/100. One per line", "Mathematics, 78\nEnglish, 65\nScience, 82\nSST, 70")
         if st.button("Generate Report Card"):
-            df = pd.DataFrame([x.split(",") for x in marks.split("\n")], columns=["Subject","Score"])
-            df["Score"] = df["Score"].astype(int)
-            df["Grade"] = df["Score"].apply(lambda x: "D1" if x>=80 else "C3" if x>=65 else "P7" if x>=50 else "F9")
-            st.dataframe(df)
-            avg = df["Score"].mean()
-            st.metric("Average", f"{avg:.1f}%")
-            comment = "Excellent" if avg>=75 else "Good" if avg>=60 else "Needs Improvement"
-            st.success(f"Comment: {comment}. Keep working hard.")
-            st.download_button("Download Report PDF", generate_pdf(df.to_string(), f"Report Card {pupil_name}"), "report.pdf")
+            try:
+                data = [x.split(",") for x in marks.split("\n") if x.strip()]
+                df = pd.DataFrame(data, columns=["Subject","Score"])
+                df["Score"] = df["Score"].astype(int)
+                df["Grade"] = df["Score"].apply(lambda x: "D1" if x>=80 else "C3" if x>=65 else "P7" if x>=50 else "F9")
+                st.dataframe(df)
+                avg = df["Score"].mean()
+                st.metric("Average", f"{avg:.1f}%")
+                comment = "Excellent" if avg>=75 else "Good" if avg>=60 else "Needs Improvement"
+                st.success(f"Comment: {comment}. Keep working hard.")
+                st.download_button("Download Report PDF", generate_pdf(df.to_string(), f"Report Card {pupil_name}"), "report.pdf")
+            except Exception as e:
+                st.error(f"Error in marks format. Use: Subject, 78")
 
 st.sidebar.caption("NCDC 2026 Competency-Based | P4-P7")
