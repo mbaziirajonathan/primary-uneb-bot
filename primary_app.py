@@ -6,6 +6,7 @@ from groq import Groq
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from gtts import gTTS
+import speech_recognition as sr
 
 # ===================== CONFIG =====================
 CONTACT = "256751040731"
@@ -184,7 +185,7 @@ def generate_pdf(content, title):
     c.drawString(40, height-50, title)
     y = height - 80
     c.setFont("Helvetica", 9)
-    for line in content.split('\n')[:45]: # FIXED: break is now inside loop
+    for line in content.split('\n')[:45]:
         c.drawString(40, y, line[:95])
         y -= 14
         if y < 50:
@@ -192,6 +193,26 @@ def generate_pdf(content, title):
     c.save()
     buffer.seek(0)
     return buffer
+
+def text_to_speech(text):
+    try:
+        tts = gTTS(text=text, lang='en')
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        return fp
+    except: return None
+
+def speech_to_text():
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+        st.info("Listening... Speak now")
+        audio = r.listen(source, timeout=5)
+    try:
+        return r.recognize_google(audio)
+    except:
+        st.error("Could not understand audio")
+        return ""
 
 # ===================== 3. PASSWORD =====================
 def check_password():
@@ -222,17 +243,25 @@ st.subheader(f"{grade} {subject}: {topic_data['topic']}")
 st.info(f"**NCDC Competency**: {topic_data['competency']}")
 st.success(f"**Example**: {topic_data['scenario']}")
 
-tabs = st.tabs(["AI Chat", "Theory + Practicals", "Quiz + Evaluation", "Math Work", "Teacher Tools"])
+tabs = st.tabs(["AI Chat + Voice", "Theory + Practicals", "Quiz + Evaluation", "Math Work", "Teacher Tools"])
 
 with tabs[0]:
-    st.header("Ask TeacherK NCDC")
-    q = st.text_input("Ask question")
+    st.header("Ask TeacherK NCDC + Voice")
+    q = st.text_input("Type question or use mic below")
+    if st.button("🎤 Speak Question"):
+        q = speech_to_text()
+        st.text_input("You said:", q, key="voice_q")
+
     if st.button("Ask") and q:
         client = get_client()
         if client:
             prompt = f"{SYSTEM_PROMPT}\nGrade: {grade}, Subject: {subject}, Topic: {topic_data['topic']}\nQ: {q}"
             res = client.chat.completions.create(model="llama-3.1-8b-instant", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}])
-            st.write(res.choices[0].message.content)
+            answer = res.choices[0].message.content
+            st.write(answer)
+            audio = text_to_speech(answer)
+            if audio: st.audio(audio)
+            st.download_button("Download Answer as PDF", generate_pdf(answer, f"Q&A {topic_data['topic']}"), "answer.pdf")
 
 with tabs[1]:
     st.header("Theory + Practical Activities")
@@ -241,7 +270,9 @@ with tabs[1]:
         if client:
             prompt = f"{SYSTEM_PROMPT}\nFor P{grade} {subject} Topic: {topic_data['topic']}. 1. Explain in 5 steps. 2. Give 2 practical activities pupils can do in class with local materials."
             res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}])
-            st.write(res.choices[0].message.content)
+            theory = res.choices[0].message.content
+            st.write(theory)
+            st.download_button("Download Theory as PDF", generate_pdf(theory, f"Theory {topic_data['topic']}"), "theory.pdf")
 
 with tabs[2]:
     st.header("Quiz Generator + Performance Evaluator")
@@ -253,6 +284,7 @@ with tabs[2]:
             res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}])
             st.session_state.quiz = res.choices[0].message.content
             st.write(st.session_state.quiz)
+            st.download_button("Download Quiz as PDF", generate_pdf(st.session_state.quiz, f"Quiz {topic_data['topic']}"), "quiz.pdf")
 
     if "quiz" in st.session_state:
         score = st.number_input("Enter Pupil Score out of "+str(num_q), 0, num_q, 5)
@@ -261,17 +293,23 @@ with tabs[2]:
             if client:
                 prompt = f"{SYSTEM_PROMPT}\nPupil scored {score}/{num_q} in P{grade} {subject} Topic: {topic_data['topic']}. Give: 1.Grade 2.Strengths 3.Weak areas 4.3 Remediation activities."
                 res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}])
-                st.success(res.choices[0].message.content)
+                evaluation = res.choices[0].message.content
+                st.success(evaluation)
+                st.download_button("Download Report as PDF", generate_pdf(evaluation, f"Evaluation {topic_data['topic']}"), "evaluation.pdf")
 
 with tabs[3]:
     st.header("Mathematics Work Page")
     if subject == "Mathematics":
         op = st.selectbox("Operation", ["Addition","Subtraction","Multiplication","Division"])
         if st.button("Generate 10 Questions"):
+            questions = ""
             for i in range(10):
                 a=random.randint(1,100)
                 b=random.randint(1,20)
-                st.write(f"{i+1}. {a} {op[0]} {b} =?")
+                q_line = f"{i+1}. {a} {op[0]} {b} =?"
+                st.write(q_line)
+                questions += q_line + "\n"
+            st.download_button("Download Questions as PDF", generate_pdf(questions, f"Math Work {op}"), "math_work.pdf")
     else:
         st.info("This tab is for Mathematics only")
 
@@ -285,7 +323,7 @@ with tabs[4]:
                 res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}])
                 plan = res.choices[0].message.content
                 st.write(plan)
-                st.download_button("Download PDF", generate_pdf(plan, "Lesson Plan"), "lesson.pdf")
+                st.download_button("Download Lesson PDF", generate_pdf(plan, "Lesson Plan"), "lesson.pdf")
 
         st.divider()
         st.subheader("2. Report Card Generator")
