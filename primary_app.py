@@ -203,7 +203,7 @@ def text_to_speech(text):
         return fp
     except: return None
 
-def speech_to_text_from_audio(audio_bytes): # FIXED FOR CLOUD
+def speech_to_text_from_audio(audio_bytes):
     r = sr.Recognizer()
     audio_file = io.BytesIO(audio_bytes)
     with sr.AudioFile(audio_file) as source:
@@ -248,7 +248,7 @@ with tabs[0]:
     st.header("Ask TeacherK NCDC + Voice")
     q = st.text_input("Type question here")
 
-    audio_input = st.audio_input("Or record your question") # FIXED: works on cloud
+    audio_input = st.audio_input("Or record your question")
     if audio_input:
         with st.spinner("Transcribing..."):
             q = speech_to_text_from_audio(audio_input.getvalue())
@@ -318,19 +318,29 @@ with tabs[3]:
 with tabs[4]:
     st.header("Teacher Tools")
     if st.session_state.user_type == "Teacher":
+
+        # FIX 1: Use session_state to persist lesson plan
+        if "lesson_plan" not in st.session_state:
+            st.session_state.lesson_plan = ""
+
         if st.button("1. Generate Lesson Plan"):
             client = get_client()
             if client:
-                prompt = f"{SYSTEM_PROMPT}\nWrite NCDC 2026 lesson plan for P{grade} {subject} Topic: {topic_data['topic']}. Include objectives, materials, steps, assessment."
-                res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}])
-                plan = res.choices[0].message.content
-                st.write(plan)
-                st.download_button("Download Lesson PDF", generate_pdf(plan, "Lesson Plan"), "lesson.pdf")
+                with st.spinner("Generating NCDC Lesson Plan..."):
+                    prompt = f"{SYSTEM_PROMPT}\nWrite NCDC 2026 lesson plan for P{grade} {subject} Topic: {topic_data['topic']}. Include objectives, materials, steps, assessment."
+                    res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}])
+                    st.session_state.lesson_plan = res.choices[0].message.content
+
+        # FIX 2: Display plan outside the button so it doesn't disappear on rerun
+        if st.session_state.lesson_plan:
+            st.write(st.session_state.lesson_plan)
+            st.download_button("Download Lesson PDF", generate_pdf(st.session_state.lesson_plan, f"Lesson Plan {topic_data['topic']}"), "lesson.pdf")
 
         st.divider()
         st.subheader("2. Report Card Generator")
-        pupil_name = st.text_input("Pupil Name")
-        marks = st.text_area("Enter marks: Subject, Score/100. One per line", "Mathematics, 78\nEnglish, 65\nScience, 82\nSST, 70")
+        pupil_name = st.text_input("Pupil Name", key="pupil_name")
+        marks = st.text_area("Enter marks: Subject, Score/100. One per line", "Mathematics, 78\nEnglish, 65\nScience, 82\nSST, 70", key="marks_input")
+
         if st.button("Generate Report Card"):
             try:
                 data = [x.split(",") for x in marks.split("\n") if x.strip()]
