@@ -1,5 +1,6 @@
-    streamlit
-    groq
-    gtts
-    reportlab
-    pandas
+streamlit
+pandas
+groq
+reportlab
+gTTS
+speechrecognition
