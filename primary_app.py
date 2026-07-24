@@ -452,7 +452,28 @@ def get_topic_data(grade, subject, topic_name):
             if t["topic"] == topic_name: return t
     return None
 
-@st.cache_resource
+def smart_groq_call(client, system_prompt, user_prompt, max_tokens=2000):
+    """Auto fallback if 70b hits rate limit"""
+    models_to_try = [MODEL_CHOICE, "llama-3.1-8b-instant", "llama-3.1-70b-versatile"]
+    models_to_try = list(dict.fromkeys(models_to_try))
+    
+    for model in models_to_try:
+        try:
+            tokens = max_tokens if "70b" in model else 1024
+            res = client.chat.completions.create(
+                model=model,
+                messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}],
+                temperature=0.2,
+                max_tokens=tokens
+            )
+            if model!= MODEL_CHOICE:
+                st.warning(f"⚠️ Switched to {model} because {MODEL_CHOICE} was busy.")
+            return res
+        except groq.RateLimitError:
+            continue
+    st.error("All Groq models busy. Wait 1 minute.")
+    return None
+
 def get_client():
     try: return Groq(api_key=st.secrets["GROQ_API_KEY"])
     except: st.error("Add GROQ_API_KEY in Streamlit Secrets"); return None
@@ -606,8 +627,11 @@ with tabs[2]:
         if client:
             prompt = f"{SYSTEM_PROMPT}\nCreate 7 scenario-based quiz questions for {grade} {subject} Topic: {topic_data['topic']}. Provide answers with full steps and units."
             with st.spinner("Generating Quiz..."):
-                res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], temperature=0.3, max_tokens=4000)
-                quiz = res.choices[0].message.content
+   
+   res = smart_groq_call(client, SYSTEM_PROMPT, prompt, max_tokens=2000)
+   if res is None: st.stop()
+   answer = res.choices[0].message.content
+     quiz = res.choices[0].message.content
             st.markdown(quiz)
             st.download_button("📥 Download Quiz PDF", generate_pdf(quiz, f"Quiz {topic_data['topic']}"), "quiz.pdf", key="dl_quiz")
 
