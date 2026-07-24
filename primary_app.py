@@ -1,5 +1,5 @@
 import streamlit as st
-import os, io, json, random
+import os, io, json, random, re
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -9,7 +9,7 @@ from datetime import datetime
 from groq import Groq
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from gtts import gTTS
+from gTTS import gTTS
 import speech_recognition as sr
 
 # ===================== CONFIG =====================
@@ -24,8 +24,8 @@ You are TEACHERK, a Senior NCDC 2026 Uganda PLE Examiner and Master Teacher for 
 CRITICAL UNEB 2026 MARKING RULE: PUPILS LOSE MARKS IF THEY JUMP STEPS.
 YOU MUST SHOW EVERY SINGLE CALCULATION STEP LIKE A PUPIL WRITING IN PLE EXAM.
 
-DIAGRAM RULE: If the question involves Geometry, Angles, Area, Triangle, Circle, Sector, Parallel Lines, Graph, then output this exact tag at the end:
-[DIAGRAM: Topic=Isosceles Triangle, Measurements="Base=8cm, Angle=50deg", Question="Label all sides"]
+DIAGRAM RULE: If the question involves Geometry, Angles, Area, Triangle, Circle, Sector, Parallel Lines, Graph, Venn, then output this exact tag at the end of the response:
+[DIAGRAM: Topic=Triangle, Measurements="Base=8cm, Angle=50deg", Question="Label all sides"]
 
 MANDATORY MATH WORKING FORMAT - USE FOR ALL 7 SCENARIOS:
 
@@ -81,37 +81,50 @@ def draw_math_diagram(d_type, measurements, question_text):
     ax.set_aspect('equal')
     plt.axis('off')
     ax.set_title(f"{d_type}\n{question_text}", fontsize=12, pad=20)
-    data = measurements.lower()
+    data = measurements.lower() if measurements else ""
 
-    # YOUR SECTOR CODE - but dynamic
-    if d_type.lower() == "sector" or d_type.lower() == "circle":
+    def safe_float(s, default):
+        try: return float(s)
+        except: return default
+    def safe_int(s, default):
+        try: return int(s)
+        except: return default
+
+    if d_type and "triangle" in d_type.lower():
+        base = 8.0
+        if "base=" in data: base = safe_float(data.split("base=")[1].split("cm")[0].strip(), 8.0)
+        angle_deg = 50.0
+        if "angle=" in data: angle_deg = safe_float(data.split("angle=")[1].split("deg")[0].strip(), 50.0)
+        angle_rad = math.radians(angle_deg)
+        apex_x = base / 2; apex_y = (base / 2) * math.tan(angle_rad) if angle_deg < 90 else base
+        side_len = math.sqrt(apex_x**2 + apex_y**2)
+        A, B, C = (0, 0), (base, 0), (apex_x, apex_y)
+        triangle = patches.Polygon([A, B, C], closed=True, fill=False, edgecolor='black', linewidth=2); ax.add_patch(triangle)
+        ax.text(A[0]-0.5, A[1]-0.5, "A", fontsize=12); ax.text(B[0]+0.5, B[1]-0.5, "B", fontsize=12); ax.text(C[0], C[1]+0.5, "C", fontsize=12)
+        ax.text(base/2, -0.5, f"{base}cm", ha='center'); ax.text(apex_x/2 - 0.3, apex_y/2, f"{side_len:.1f}cm", ha='right'); ax.text((apex_x+base)/2 + 0.3, apex_y/2, f"{side_len:.1f}cm", ha='left')
+        arc = patches.Arc(A, 1.5, 1.5, theta1=0, theta2=angle_deg, color='red', linewidth=1.5); ax.add_patch(arc); ax.text(1, 0.3, f"{angle_deg}°", color='red')
+        ax.set_xlim(-2, base+2); ax.set_ylim(-2, apex_y+2)
+
+    elif d_type and ("circle" in d_type.lower() or "sector" in d_type.lower()):
         r = 6.0
-        if "radius=" in data:
-            try: r = float(data.split("radius=")[1].split("cm")[0].strip())
-            except: pass
+        if "radius=" in data: r = safe_float(data.split("radius=")[1].split("cm")[0].strip(), 6.0)
         theta1, theta2 = 0, 90
-        if "angle=" in data:
-            try: theta2 = float(data.split("angle=")[1].split("deg")[0].strip())
-            except: pass
-
+        if "angle=" in data: theta2 = safe_float(data.split("angle=")[1].split("deg")[0].strip(), 90.0)
         cx, cy = 0, 0
         p0 = [cx, cy]
         p1 = [cx + r * math.cos(math.radians(theta1)), cy + r * math.sin(math.radians(theta1))]
         p2 = [cx + r * math.cos(math.radians(theta2)), cy + r * math.sin(math.radians(theta2))]
-
         arc = patches.Arc((cx, cy), 2*r, 2*r, angle=0, theta1=theta1, theta2=theta2, color='black', lw=2)
         ax.add_patch(arc)
         ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color='black', lw=2)
         ax.plot([p0[0], p2[0]], [p0[1], p2[1]], color='black', lw=2)
         ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color='black', lw=1.5, linestyle='--')
-
         t = np.linspace(math.radians(theta1), math.radians(theta2), 100)
         x_arc = cx + r * np.cos(t)
         y_arc = cy + r * np.sin(t)
         x_shade = np.concatenate(([p2[0]], x_arc, [p1[0]]))
         y_shade = np.concatenate(([p2[1]], y_arc, [p1[1]]))
         ax.fill(x_shade, y_shade, color='darkgray', alpha=0.5)
-
         ax.text(cx - 0.4, cy - 0.4, 'O', fontsize=12, fontweight='bold')
         ax.text(p1[0] + 0.3, p1[1] - 0.1, 'A', fontsize=12, fontweight='bold')
         ax.text(p2[0] - 0.1, p2[1] + 0.3, 'B', fontsize=12, fontweight='bold')
@@ -119,8 +132,33 @@ def draw_math_diagram(d_type, measurements, question_text):
         plt.xlim(-1, r + 1)
         plt.ylim(-1, r + 1)
 
-    # KEEP YOUR OTHER TYPES HERE: triangle, venn, bar...
-    #... paste the other if/elif blocks from previous fix here
+    elif d_type and "venn" in d_type.lower():
+        a=20; b=15; ab=5
+        if "a=" in data: a = safe_int(data.split("a=")[1].split(",")[0], 20)
+        if "b=" in data: b = safe_int(data.split("b=")[1].split(",")[0], 15)
+        if "ab=" in data: ab = safe_int(data.split("ab=")[1].split(",")[0], 5)
+        circle1 = patches.Circle((0.3, 0.5), 0.3, fill=False, edgecolor='blue', linewidth=2)
+        circle2 = patches.Circle((0.7, 0.5), 0.3, fill=False, edgecolor='green', linewidth=2)
+        ax.add_patch(circle1); ax.add_patch(circle2)
+        ax.text(0.3, 0.5, f"{a-ab}", ha='center', va='center', fontsize=14, color='blue')
+        ax.text(0.7, 0.5, f"{b-ab}", ha='center', va='center', fontsize=14, color='green')
+        ax.text(0.5, 0.5, f"{ab}", ha='center', va='center', fontsize=14)
+        ax.text(0.1, 0.8, "A", fontsize=14, color='blue'); ax.text(0.9, 0.8, "B", fontsize=14, color='green')
+        ax.set_xlim(0,1); ax.set_ylim(0,1)
+
+    elif d_type and "bar" in d_type.lower():
+        labels = []; values = []
+        for item in data.split(","):
+            if ":" in item:
+                k,v = item.split(":"); labels.append(k.strip().title());
+                values.append(safe_int(v, 0))
+        if labels:
+            ax.bar(labels, values, color='teal')
+            ax.set_ylabel("Frequency"); ax.set_title(question_text)
+            for i,v in enumerate(values): ax.text(i, v+0.5, str(v), ha='center')
+            plt.xticks(rotation=15)
+        else:
+            ax.text(0.5, 0.5, "No data provided", ha='center', va='center')
 
     plt.tight_layout()
     buf = io.BytesIO()
@@ -133,8 +171,10 @@ def parse_diagram_tag(text):
     if "[DIAGRAM:" not in text: return None
     try:
         tag = text.split("[DIAGRAM:")[1].split("]")[0]; parts = {}
-        for item in tag.split(","): k,v = item.split("=",1); parts[k.strip()] = v.strip().strip('"')
-        return parts
+        for item in tag.split(","):
+            if "=" in item:
+                k,v = item.split("=",1); parts[k.strip()] = v.strip().strip('"')
+        return parts if parts.get("Topic") else None
     except: return None
 
 # ===================== 3. FULL NCDC 2026 DB - ALL 6 SUBJECTS P4-P7 - NO DATA LOST =====================
@@ -493,7 +533,7 @@ with tabs[0]:
             if diagram_info:
                 st.subheader("📐 Diagram")
                 img_buf = draw_math_diagram(diagram_info.get("Topic",""), diagram_info.get("Measurements",""), diagram_info.get("Question",""))
-                st.image(img_buf, use_container_width=True)
+                if img_buf: st.image(img_buf, use_container_width=True)
 
             audio = text_to_speech(answer)
             if audio: st.audio(audio)
@@ -539,7 +579,7 @@ with tabs[3]:
                 if diagram_info:
                     st.subheader("📐 Diagram")
                     img_buf = draw_math_diagram(diagram_info.get("Topic",""), diagram_info.get("Measurements",""), diagram_info.get("Question",""))
-                    st.image(img_buf, use_container_width=True)
+                    if img_buf: st.image(img_buf, use_container_width=True)
 
                 st.download_button("📥 Download Math Work PDF", generate_pdf(math_work, f"Math Work {topic_data['topic']}"), "math_work.pdf", key="dl_math")
     else:
@@ -559,5 +599,3 @@ with tabs[4]:
             st.download_button("📥 Download Scheme PDF", generate_pdf(scheme, f"Scheme {topic_data['topic']}"), "scheme.pdf", key="dl_scheme")
 
 st.sidebar.caption("NCDC 2026 Competency-Based | P4-P7 | Pixel-Perfect Diagrams | 7 Scenarios Per Mode | Contact: " + CONTACT)
-
-      
