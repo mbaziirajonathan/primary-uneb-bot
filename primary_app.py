@@ -363,7 +363,7 @@ def generate_pdf(content, title):
             c.showPage()
             y = height - 50
     c.save()
-        buffer.seek(0)
+    buffer.seek(0)
     return buffer
 
 def text_to_speech(text):
