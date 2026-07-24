@@ -4,5 +4,3 @@ matplotlib
 numpy
 groq
 reportlab
-gTTS
-SpeechRecognition
