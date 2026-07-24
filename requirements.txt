@@ -1,6 +1,7 @@
 streamlit
 pandas
+matplotlib
 groq
 reportlab
 gTTS
-speechrecognition
+SpeechRecognition
