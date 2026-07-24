@@ -463,13 +463,6 @@ def check_password():
         st.stop()
 check_password()
 
-# ===================== 4. MAIN APP =====================
-st.title("🐢 TEACHERK PRIMARY 2026 NCDC")
-st.sidebar.success(f"Logged in as: {st.session_state.user_type}")
-
-grade = st.sidebar.selectbox("Class", ["P4","P5","P6","P7"])
-subject = st.sidebar.selectbox("Subject", list(PRIMARY_CURRICULUM_MAP[grade].keys()))
-topic = st.sidebar.selectbox("Topic", PRIMARY_CURRICULUM_MAP[grade][subject])
 
 topic_data = get_topic_data(grade, subject, topic)
 if topic_data is None: st.error("Topic not found in NCDC P4-P7. Please select another."); st.stop()
