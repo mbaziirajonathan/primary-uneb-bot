@@ -13,20 +13,20 @@ CONTACT = "256751040731"
 st.set_page_config(page_title="TEACHERK PRIMARY 2026 NCDC", page_icon="🐢", layout="wide")
 st.warning("⚠️ **DISCLAIMER**: TEACHERK follows NCDC 2026 Uganda Primary Competency-Based Curriculum P4-P7. Confirm with Class Teacher.")
 
-# ===================== 1. NEW NCDC 2026 SYSTEM PROMPT - SCENARIO BASED =====================
+# ===================== 1. NEW NCDC 2026 SYSTEM PROMPT - 7 SCENARIOS LOOP =====================
 SYSTEM_PROMPT = """
 You are TEACHERK, a Senior NCDC 2026 Uganda Examiner and Master Teacher for PRIMARY P4-P7.
 
-YOUR MISSION: Help students understand deeply by showing MULTIPLE SCENARIOS and MULTIPLE WAYS to solve 1 problem. Like UNEB marking guide.
+YOUR MISSION: Help students understand deeply by showing AT LEAST 7 DIFFERENT SCENARIOS for 1 topic. Like UNEB marking guide.
 
-MANDATORY OUTPUT FORMAT - USE THIS EVERY TIME:
+MANDATORY OUTPUT FORMAT - LOOP THIS 7 TIMES:
 
-### **PART 1: SCENARIO 1 - [Give it a Ugandan Title]**
-Write a 4-5 sentence real-life Ugandan scenario. Use: market, school, boda, farm, clinic, home.
+### **SCENARIO 1: [Give it a Ugandan Title]**
+Write a 3-4 sentence real-life Ugandan scenario. Use: market, school, boda, farm, clinic, home.
 
 **COMPETENCY TASK:** State what learner must be able to DO.
 
-**QUESTION 1:** 1 clear scenario-based question with marks. [4 marks]
+**QUESTION 1:** 1 clear scenario-based question with marks. [2 marks]
 
 **METHOD 1: Formula/Concept Method**
 Step 1: State concept/formula
@@ -39,34 +39,26 @@ Explain how to solve it without formula. Using reasoning or drawing.
 Answer: ___
 
 ---
-### **PART 2: SCENARIO 2 - [Different Ugandan Title]**
-Different scenario but testing SAME competency/topic.
+REPEAT FOR SCENARIO 2, 3, 4, 5, 6, 7. Each must be DIFFERENT.
 
-**COMPETENCY TASK:** State what learner must be able to DO.
-
-**QUESTION 2:** Different question but same concept. [4 marks]
-
-**METHOD 1 & 2:** Show 2 different ways to answer again.
-
----
-### **PART 3: COMMON MISTAKES & EXAM TIPS**
+### **PART 8: COMMON MISTAKES & EXAM TIPS**
 1. List 3 mistakes pupils make on this topic in PLE
 2. Give 1 "Trick" to remember
 
-### **PART 4: QUICK PRACTICE FOR PUPILS**
-Give 2 more short questions for pupil to try alone. No answers.
+### **PART 9: QUICK PRACTICE FOR PUPILS**
+Give 3 more short questions for pupil to try alone. No answers.
 
 CURRICULUM RULES:
 1. LOCK: Only use the NCDC 2026 P4-P7 topics provided below. If outside, say: "That is not in NCDC P4-P7. Let's do [suggest closest topic] instead."
-2. EXAMPLES: All scenarios must be Ugandan and realistic.
+2. EXAMPLES: All 7 scenarios must be Ugandan and realistic and DIFFERENT.
 3. LANGUAGE: Simple English for ages 9-13. Step by step.
 4. MATH/SCIENCE: Always show units. Always show 2 methods minimum.
-5. GOAL: Pupil should say "Ahh I now get it 2 different ways"
+5. QUANTITY RULE: MUST GENERATE AT LEAST 7 SCENARIOS. NO LESS.
 
 TONE: Patient teacher. Use "Let's try", "Notice that", "Why does this work?"
 """
 
-# ===================== 2. FULL NCDC 2026 DB - EXACT TOPICS PROVIDED =====================
+# ===================== 2. FULL NCDC 2026 DB - EXACT TOPICS PROVIDED - NO CHANGE =====================
 PRIMARY_DB = {
   "PRIMARY_4": {
     "Mathematics": [
@@ -356,7 +348,79 @@ def generate_pdf(content, title):
     c.drawString(40, height-50, title)
     y = height - 80
     c.setFont("Helvetica", 9)
-    for line in content.split('\n')[:60]:
+    for line in content.split('\n')[:80]:
+        c.drawString(40, y, line[:95])
+        y -= 14
+        if y < 50:
+            c.showPage()
+            y = height - 50
+    c.save()
+    buffer.seek(0)
+    return buffer
+
+def text_to_speech(text):
+    try:
+        tts = gTTS(text=text, lang='en')
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        return fp
+    except: return None
+
+def speech_to_text_from_audio(audio_bytes):
+    r = sr.Recognizer()
+    audio_file = io.BytesIO(audio_bytes)
+    with sr.AudioFile(audio_file) as source:
+        audio = r.record(source)
+    try:
+        return r.recognize_google(audio)
+    except:
+        return ""
+
+# ===================== 3. PASSWORD =====================
+def check_password():
+    APP_PW = st.secrets.get("PRIMARY_APP_PASSWORD", "PRIMARY2026")
+    ADMIN_PW = st.secrets.get("ADMIN_PASSWORD", "ADMIN256")
+    if "password_correct" not in st.session_state:
+        st.title("🔒 TEACHERK PRIMARY 2026 NCDC")
+        pw = st.text_input("Password", type="password")
+        if st.button("Login"):
+            if pw == APP_PW: st.session_state["user_type"] = "Pupil"; st.session_state["password_correct"] = True; st.rerun()
+            elif pw == ADMIN_PW: st.session_state["user_type"] = "Teacher"; st.session_state["password_correct"] = True; st.rerun()
+            else: st.error("Wrong password")
+        st.stop()
+check_password()
+
+# ===================== 4. MAIN APP =====================
+st.title("🐢 TEACHERK PRIMARY 2026 NCDC")
+st.sidebar.success(f"Logged in as: {st.session_state.user_type}")
+
+grade = st.sidebar.selectbox("Class", ["P4","P5","P6","P7"])
+subject = st.sidebar.selectbox("Subject", list(PRIMARY_CURRICULUM_MAP[grade].keys()))
+topic = st.sidebar.selectbox("Topic", PRIMARY_CURRICULUM_MAP[grade][subject])
+
+ def get_topic_data(grade, subject, topic_name):
+    grade_num = grade.replace("P","")
+    grade_key = f"PRIMARY_{grade_num}"
+    if grade_key in PRIMARY_DB and subject in PRIMARY_DB[grade_key]:
+        for t in PRIMARY_DB[grade_key][subject]:
+            if t["topic"] == topic_name: return t
+    return None
+
+@st.cache_resource
+def get_client():
+    try: return Groq(api_key=st.secrets["GROQ_API_KEY"])
+    except: st.error("Add GROQ_API_KEY in Streamlit Secrets"); return None
+
+def generate_pdf(content, title):
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(40, height-50, title)
+    y = height - 80
+    c.setFont("Helvetica", 9)
+    for line in content.split('\n')[:80]:
         c.drawString(40, y, line[:95])
         y -= 14
         if y < 50:
@@ -417,7 +481,7 @@ st.success(f"**Example Scenario**: {topic_data['scenario']}")
 tabs = st.tabs(["AI Chat + Voice", "Theory + Practicals", "Quiz + Evaluation", "Math Work", "Teacher Tools"])
 
 with tabs[0]:
-    st.header("Ask TeacherK NCDC - Scenario Based")
+    st.header("Ask TeacherK NCDC - 7 Scenarios")
     q = st.text_input("Type question here e.g: Teach me Fractions")
     audio_input = st.audio_input("Or record your question")
     if audio_input:
@@ -427,11 +491,11 @@ with tabs[0]:
     if st.button("Ask") and q:
         client = get_client()
         if client:
-            prompt = f"{SYSTEM_PROMPT}\n\nLevel: {grade}, Subject: {subject}, Topic: {topic_data['topic']}\n\nStudent Request: {q}\n\nNOW TEACH THIS TOPIC USING 2 DIFFERENT UGANDA SCENARIOS AND SHOW MULTIPLE WAYS TO SOLVE EACH TASK."
+            prompt = f"{SYSTEM_PROMPT}\n\nLevel: {grade}, Subject: {subject}, Topic: {topic_data['topic']}\n\nStudent Request: {q}\n\nNOW TEACH THIS TOPIC USING AT LEAST 7 DIFFERENT UGANDA SCENARIOS AND SHOW MULTIPLE WAYS TO SOLVE EACH TASK."
             res = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}],
-                temperature=0.2
+                temperature=0.2, max_tokens=4000
             )
             answer = res.choices[0].message.content
             st.markdown(answer)
@@ -440,24 +504,24 @@ with tabs[0]:
             st.download_button("Download Lesson + Marking Guide as PDF", generate_pdf(answer, f"{grade} {subject} {topic_data['topic']}"), "lesson.pdf")
 
 with tabs[1]:
-    st.header("Theory + Practical Activities")
-    if st.button("Generate Theory and 2 Practicals"):
+    st.header("Theory + 2 Practicals - 7 Scenarios")
+    if st.button("Generate Theory and Practicals"):
         client = get_client()
         if client:
-            prompt = f"{SYSTEM_PROMPT}\nFor {grade} {subject} Topic: {topic_data['topic']}. Give 2 scenarios and 2 practical activities pupils can do with local materials."
-            res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], temperature=0.3)
+            prompt = f"{SYSTEM_PROMPT}\nFor {grade} {subject} Topic: {topic_data['topic']}. Give 7 scenarios and 2 practical activities pupils can do with local materials."
+            res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], temperature=0.3, max_tokens=4000)
             theory = res.choices[0].message.content
             st.markdown(theory)
             st.download_button("Download Theory as PDF", generate_pdf(theory, f"Theory {topic_data['topic']}"), "theory.pdf")
 
 with tabs[2]:
-    st.header("Quiz Generator + Performance Evaluator")
-    num_q = st.slider("Number of Questions", 5, 20, 10)
+    st.header("Quiz Generator + Performance Evaluator - 7 Scenarios")
+    num_q = st.slider("Number of Questions", 7, 20, 10)
     if st.button("Generate Scenario-Based Quiz"):
         client = get_client()
         if client:
-            prompt = f"{SYSTEM_PROMPT}\nGenerate {num_q} scenario-based questions for {grade} {subject} Topic: {topic_data['topic']}. Each question must have a short Uganda scenario. Include marking guide."
-            res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], temperature=0.3)
+            prompt = f"{SYSTEM_PROMPT}\nGenerate {num_q} scenario-based questions for {grade} {subject} Topic: {topic_data['topic']}. Use at least 7 different Uganda scenarios across the questions. Include marking guide."
+            res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], temperature=0.3, max_tokens=4000)
             st.session_state.quiz = res.choices[0].message.content
             st.markdown(st.session_state.quiz)
             st.download_button("Download Quiz as PDF", generate_pdf(st.session_state.quiz, f"Quiz {topic_data['topic']}"), "quiz.pdf")
@@ -466,30 +530,28 @@ with tabs[2]:
         if st.button("Evaluate Performance"):
             client = get_client()
             if client:
-                prompt = f"{SYSTEM_PROMPT}\nPupil scored {score}/{num_q} in {grade} {subject} Topic: {topic_data['topic']}. Give: 1.Grade 2.Strengths 3.Weak areas 4.3 Remediation activities with scenarios."
+                prompt = f"{SYSTEM_PROMPT}\nPupil scored {score}/{num_q} in {grade} {subject} Topic: {topic_data['topic']}. Give: 1.Grade 2.Strengths 3.Weak areas 4.3 Remediation activities with 7 scenarios."
                 res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}])
                 evaluation = res.choices[0].message.content
                 st.success(evaluation)
                 st.download_button("Download Report as PDF", generate_pdf(evaluation, f"Evaluation {topic_data['topic']}"), "evaluation.pdf")
 
 with tabs[3]:
-    st.header("Mathematics Work Page")
+    st.header("Mathematics Work Page - 7 Scenario Workouts")
     if subject == "Mathematics":
-        op = st.selectbox("Operation", ["Addition","Subtraction","Multiplication","Division"])
-        if st.button("Generate 10 Scenario Questions"):
-            questions = ""
-            for i in range(10):
-                a=random.randint(1,100)
-                b=random.randint(1,20)
-                q_line = f"{i+1}. At Owino Market, a trader had {a} tomatoes. She sold {b}. How many remained? =?"
-                st.write(q_line)
-                questions += q_line + "\n"
-            st.download_button("Download Questions as PDF", generate_pdf(questions, f"Math Work {op}"), "math_work.pdf")
-    else:
-        st.info("This tab is for Mathematics only")
+        if st.button("Generate 7 Scenario Worked Examples"):
+            client = get_client()
+            if client:
+                prompt = f"{SYSTEM_PROMPT}\nGenerate 7 fully worked scenario-based math questions for {grade} {subject} Topic: {topic_data['topic']}. Each must have 2 methods. Ugandan context."
+                res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], temperature=0.2, max_tokens=4000)
+                math_work = res.choices[0].message.content
+                st.markdown(math_work)
+                st.download_button("Download Math Work as PDF", generate_pdf(math_work, f"Math Work {topic_data['topic']}"), "math_work.pdf")
+   else:
+       st.info("This tab is for Mathematics only. Select Mathematics subject to use.")
 
 with tabs[4]:
-    st.header("🛠️ Teacher Tools - NCDC 2026")
+    st.header("🛠️ Teacher Tools - NCDC 2026 - 7 Scenarios")
     tool_choice = st.selectbox("Select Teacher Tool", [
         "1. Lesson Plan Generator",
         "2. Report Card Generator",
@@ -505,8 +567,8 @@ with tabs[4]:
         if st.button("Generate Lesson Plan"):
             if client:
                 with st.spinner("Generating..."):
-                    prompt = f"{SYSTEM_PROMPT}\nWrite full NCDC 2026 lesson plan for {grade} {subject} Topic: {topic_data['topic']}. Duration: {duration}. Must include 2 scenarios and multiple methods."
-                    res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}])
+                    prompt = f"{SYSTEM_PROMPT}\nWrite full NCDC 2026 lesson plan for {grade} {subject} Topic: {topic_data['topic']}. Duration: {duration}. Must include 7 scenarios and multiple methods."
+                    res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], max_tokens=4000)
                     plan = res.choices[0].message.content
                     st.markdown(plan)
                     st.download_button("Download Lesson Plan PDF", generate_pdf(plan, f"Lesson Plan {grade} {topic_data['topic']}"), "lesson_plan.pdf")
@@ -536,8 +598,8 @@ with tabs[4]:
         if st.button("Generate BOT Test"):
             if client:
                 with st.spinner("Generating 20 Scenario Questions..."):
-                    prompt = f"{SYSTEM_PROMPT}\nGenerate 20 question Beginning of Term diagnostic test for {grade} {subject}. All questions must have short Uganda scenarios. Include marking guide."
-                    res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}])
+                    prompt = f"{SYSTEM_PROMPT}\nGenerate 20 question Beginning of Term diagnostic test for {grade} {subject}. Use at least 7 different Uganda scenarios. Include marking guide."
+                    res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], max_tokens=4000)
                     bot = res.choices[0].message.content
                     st.markdown(bot)
                     st.download_button("Download BOT Test PDF", generate_pdf(bot, f"BOT Test {grade} {subject}"), "bot_test.pdf")
@@ -548,8 +610,8 @@ with tabs[4]:
         if st.button("Generate Mid Term Exam"):
             if client:
                 with st.spinner("Generating 50 Marks Exam..."):
-                    prompt = f"{SYSTEM_PROMPT}\nGenerate Mid Term Exam for {grade} {subject}. Topics: {topics_covered}. 50 marks. All questions scenario based. Include marking guide."
-                    res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}])
+                    prompt = f"{SYSTEM_PROMPT}\nGenerate Mid Term Exam for {grade} {subject}. Topics: {topics_covered}. 50 marks. Use at least 7 different scenarios. Include marking guide."
+                    res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], max_tokens=4000)
                     midterm = res.choices[0].message.content
                     st.markdown(midterm)
                     st.download_button("Download Mid Term PDF", generate_pdf(midterm, f"Mid Term {grade} {subject}"), "midterm.pdf")
@@ -559,10 +621,10 @@ with tabs[4]:
         if st.button("Generate End of Term Exam"):
             if client:
                 with st.spinner("Generating 100 Marks PLE Style Exam..."):
-                    prompt = f"{SYSTEM_PROMPT}\nGenerate End of Term Exam for {grade} {subject}. 100 marks PLE style. All questions must be scenario based. Section A: 40 MCQ. Section B: 10 short answer. Section C: 5 essay. Include detailed marking guide."
-                    res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}])
+                    prompt = f"{SYSTEM_PROMPT}\nGenerate End of Term Exam for {grade} {subject}. 100 marks PLE style. Use at least 7 different scenarios. Section A: 40 MCQ. Section B: 10 short answer. Section C: 5 essay. Include detailed marking guide."
+                    res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], max_tokens=4000)
                     eot = res.choices[0].message.content
                     st.markdown(eot)
                     st.download_button("Download EOT Exam PDF", generate_pdf(eot, f"End of Term {grade} {subject}"), "eot_exam.pdf")
 
-st.sidebar.caption("NCDC 2026 Competency-Based | P4-P7 | 6 Subjects Locked")
+st.sidebar.caption("NCDC 2026 Competency-Based | P4-P7 | 6 Subjects Locked | 7 Scenarios Per Mode")
