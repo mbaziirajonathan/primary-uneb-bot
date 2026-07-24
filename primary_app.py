@@ -75,7 +75,7 @@ CLOSING RULE: End each scenario with "Therefore the [answer] was [number][unit]"
 """
 
 # ===================== 2. DIAGRAM GENERATOR - PIXEL PERFECT =====================
- def draw_math_diagram(d_type, data, question_text):
+def draw_math_diagram(d_type, data, question_text):
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.set_aspect('equal'); plt.axis('off')
     ax.set_title(f"{d_type}\n{question_text}", fontsize=12, pad=20)
