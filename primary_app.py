@@ -506,6 +506,15 @@ grade = st.sidebar.selectbox("Class", ["P4","P5","P6","P7"], key="grade_select")
 subject = st.sidebar.selectbox("Subject", list(PRIMARY_CURRICULUM_MAP[grade].keys()), key="subject_select")
 topic = st.sidebar.selectbox("Topic", PRIMARY_CURRICULUM_MAP[grade][subject], key="topic_select")
 
+st.sidebar.header("⚙️ Settings")
+MODEL_CHOICE = st.sidebar.selectbox(
+    "AI Brain",
+    ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama-3.1-70b-versatile"],
+    index=0,
+    help="70b = Smartest but slower. 8b = Fastest, no limits. Auto-switches if 70b is full"
+)
+st.sidebar.caption(f"Current: {MODEL_CHOICE}")
+
 topic_data = get_topic_data(grade, subject, topic)
 if topic_data is None: st.error("Topic not found in NCDC P4-P7. Please select another."); st.stop()
 
