@@ -399,7 +399,7 @@ grade = st.sidebar.selectbox("Class", ["P4","P5","P6","P7"])
 subject = st.sidebar.selectbox("Subject", list(PRIMARY_CURRICULUM_MAP[grade].keys()))
 topic = st.sidebar.selectbox("Topic", PRIMARY_CURRICULUM_MAP[grade][subject])
 
- def get_topic_data(grade, subject, topic_name):
+def get_topic_data(grade, subject, topic_name):
     grade_num = grade.replace("P","")
     grade_key = f"PRIMARY_{grade_num}"
     if grade_key in PRIMARY_DB and subject in PRIMARY_DB[grade_key]:
