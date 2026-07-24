@@ -628,10 +628,10 @@ with tabs[2]:
             prompt = f"{SYSTEM_PROMPT}\nCreate 7 scenario-based quiz questions for {grade} {subject} Topic: {topic_data['topic']}. Provide answers with full steps and units."
             with st.spinner("Generating Quiz..."):
    
-   res = smart_groq_call(client, SYSTEM_PROMPT, prompt, max_tokens=2000)
-   if res is None: st.stop()
-   answer = res.choices[0].message.content
-     quiz = res.choices[0].message.content
+    res = smart_groq_call(client, SYSTEM_PROMPT, prompt, max_tokens=2000)
+    if res is None: st.stop()
+    answer = res.choices[0].message.content
+    quiz = res.choices[0].message.content
             st.markdown(quiz)
             st.download_button("📥 Download Quiz PDF", generate_pdf(quiz, f"Quiz {topic_data['topic']}"), "quiz.pdf", key="dl_quiz")
 
