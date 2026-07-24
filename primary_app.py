@@ -6,10 +6,12 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import math
 from datetime import datetime
-from groq import Groq
+from groq import Groq, RateLimitError # <- Added RateLimitError
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 import streamlit.components.v1 as components
+from gtts import gTTS # <- Added for TTS
+import speech_recognition as sr # <- Added for STT
 # ===================== CONFIG =====================
 CONTACT = "256751040731"
 st.set_page_config(page_title="TEACHERK PRIMARY 2026 NCDC", page_icon="🐢", layout="wide")
@@ -456,7 +458,7 @@ def smart_groq_call(client, system_prompt, user_prompt, max_tokens=2000):
     """Auto fallback if 70b hits rate limit"""
     models_to_try = [MODEL_CHOICE, "llama-3.1-8b-instant", "llama-3.1-70b-versatile"]
     models_to_try = list(dict.fromkeys(models_to_try))
-    
+
     for model in models_to_try:
         try:
             tokens = max_tokens if "70b" in model else 1024
@@ -469,7 +471,9 @@ def smart_groq_call(client, system_prompt, user_prompt, max_tokens=2000):
             if model!= MODEL_CHOICE:
                 st.warning(f"⚠️ Switched to {model} because {MODEL_CHOICE} was busy.")
             return res
-        except groq.RateLimitError:
+        except RateLimitError:
+            continue
+        except Exception:
             continue
     st.error("All Groq models busy. Wait 1 minute.")
     return None
@@ -553,7 +557,8 @@ with tabs[0]:
         if client:
             prompt = f"{SYSTEM_PROMPT}\n\nLevel: {grade}, Subject: {subject}, Topic: {topic_data['topic']}\n\nStudent Request: {q}\n\nCRITICAL: SHOW EVERY SINGLE STEP. EMPHASIZE UNITS. IF GEOMETRY, ADD [DIAGRAM: Topic=..., Measurements=..., Question=...] TAG"
             with st.spinner("TeacherK is thinking step by step..."):
-                res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], temperature=0.2, max_tokens=4000)
+                res = smart_groq_call(client, SYSTEM_PROMPT, prompt, max_tokens=4000)
+                if res is None: st.stop()
                 answer = res.choices[0].message.content
             st.markdown(answer)
 
@@ -615,7 +620,8 @@ with tabs[1]:
         if client:
             prompt = f"{SYSTEM_PROMPT}\nTeach {grade} {subject} Topic: {topic_data['topic']}. Give Theory + 7 Uganda practical activities. Show steps."
             with st.spinner("Generating..."):
-                res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], temperature=0.3, max_tokens=4000)
+                res = smart_groq_call(client, SYSTEM_PROMPT, prompt, max_tokens=4000)
+                if res is None: st.stop()
                 theory = res.choices[0].message.content
             st.markdown(theory)
             st.download_button("📥 Download Theory PDF", generate_pdf(theory, f"Theory {topic_data['topic']}"), "theory.pdf", key="dl_theory")
@@ -627,11 +633,9 @@ with tabs[2]:
         if client:
             prompt = f"{SYSTEM_PROMPT}\nCreate 7 scenario-based quiz questions for {grade} {subject} Topic: {topic_data['topic']}. Provide answers with full steps and units."
             with st.spinner("Generating Quiz..."):
-   
-    res = smart_groq_call(client, SYSTEM_PROMPT, prompt, max_tokens=2000)
-    if res is None: st.stop()
-    answer = res.choices[0].message.content
-    quiz = res.choices[0].message.content
+                res = smart_groq_call(client, SYSTEM_PROMPT, prompt, max_tokens=2000)
+                if res is None: st.stop()
+                quiz = res.choices[0].message.content
             st.markdown(quiz)
             st.download_button("📥 Download Quiz PDF", generate_pdf(quiz, f"Quiz {topic_data['topic']}"), "quiz.pdf", key="dl_quiz")
 
@@ -643,7 +647,8 @@ with tabs[3]:
             if client:
                 prompt = f"{SYSTEM_PROMPT}\nGenerate 7 fully worked scenario-based math questions for {grade} {subject} Topic: {topic_data['topic']}. EACH QUESTION MUST SHOW EVERY STEP. NO JUMPING. FINAL ANSWER MUST HAVE UNITS. IF GEOMETRY, ADD [DIAGRAM:...] TAG"
                 with st.spinner("Generating Math Work..."):
-                    res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], temperature=0.2, max_tokens=4000)
+                    res = smart_groq_call(client, SYSTEM_PROMPT, prompt, max_tokens=4000)
+                    if res is None: st.stop()
                     math_work = res.choices[0].message.content
                 st.markdown(math_work)
 
@@ -665,7 +670,8 @@ with tabs[4]:
         if client:
             prompt = f"Create a 1-week scheme of work for {grade} {subject} Topic: {topic_data['topic']} following NCDC 2026. Include Competency, Activities, Assessment."
             with st.spinner("Generating..."):
-                res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"user","content":prompt}], temperature=0.2, max_tokens=2000)
+                res = smart_groq_call(client, SYSTEM_PROMPT, prompt, max_tokens=2000)
+                if res is None: st.stop()
                 scheme = res.choices[0].message.content
             st.markdown(scheme)
             st.download_button("📥 Download Scheme PDF", generate_pdf(scheme, f"Scheme {topic_data['topic']}"), "scheme.pdf", key="dl_scheme")
