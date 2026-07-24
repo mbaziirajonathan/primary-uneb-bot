@@ -9,9 +9,7 @@ from datetime import datetime
 from groq import Groq
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from gTTS import gTTS
-import speech_recognition as sr
-
+import streamlit.components.v1 as components
 # ===================== CONFIG =====================
 CONTACT = "256751040731"
 st.set_page_config(page_title="TEACHERK PRIMARY 2026 NCDC", page_icon="🐢", layout="wide")
@@ -517,7 +515,7 @@ st.success(f"**Example Scenario**: {topic_data['scenario']}")
 
 tabs = st.tabs(["AI Chat + Voice", "Theory + Practicals", "Quiz + Evaluation", "Math Work", "Teacher Tools"])
 
-with tabs[0]:
+ with tabs[0]:
     st.header("Ask TeacherK NCDC - 7 Scenarios")
     q = st.text_input("Type question here e.g: Teach me Isosceles Triangle", key="chat_q")
     if st.button("Ask", key="ask_btn") and q:
@@ -535,8 +533,49 @@ with tabs[0]:
                 img_buf = draw_math_diagram(diagram_info.get("Topic",""), diagram_info.get("Measurements",""), diagram_info.get("Question",""))
                 if img_buf: st.image(img_buf, use_container_width=True)
 
-            audio = text_to_speech(answer)
-            if audio: st.audio(audio)
+            # Browser Text-to-Speech
+            st.subheader("🔊 Listen to Lesson")
+            tts_html = f"""
+            <script>
+            function speak(text) {{
+                var msg = new SpeechSynthesisUtterance();
+                msg.text = text;
+                msg.lang = 'en-UG';
+                msg.rate = 0.9;
+                window.speechSynthesis.speak(msg);
+            }}
+            </script>
+            <button onclick="speak(`{answer.replace('`','')}`)" style="padding:10px 20px; font-size:16px; background:#4CAF50; color:white; border:none; border-radius:5px; cursor:pointer;">
+                ▶️ Play Voice
+            </button>
+            """
+            components.html(tts_html, height=60)
+
+            # Browser Speech-to-Text Mic
+            st.subheader("🎤 Talk to TeacherK")
+            stt_html = """
+            <script>
+            function startDictation() {
+                if (window.hasOwnProperty('webkitSpeechRecognition')) {
+                    var recognition = new webkitSpeechRecognition();
+                    recognition.continuous = false;
+                    recognition.interimResults = false;
+                    recognition.lang = "en-UG";
+                    recognition.start();
+                    recognition.onresult = function(e) {
+                        document.getElementById('transcript').value = e.results[0][0].transcript;
+                        recognition.stop();
+                    };
+                    recognition.onerror = function(e) { recognition.stop(); }
+                }
+            }
+            </script>
+            <input type="text" id="transcript" placeholder="Click mic and speak..." style="width:70%; padding:8px;">
+            <button onclick="startDictation()" style="padding:8px 15px;">🎤</button>
+            """
+            components.html(stt_html, height=60)
+
+            # DOWNLOAD BUTTON GOES HERE - INSIDE THE IF BLOCK
             st.download_button("📥 Download Lesson PDF", generate_pdf(answer, f"{grade} {subject} {topic_data['topic']}"), "lesson.pdf", key="dl_lesson")
 
 with tabs[1]:
