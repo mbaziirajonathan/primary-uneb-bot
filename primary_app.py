@@ -547,8 +547,9 @@ with tabs[3]:
                 math_work = res.choices[0].message.content
                 st.markdown(math_work)
                 st.download_button("Download Math Work as PDF", generate_pdf(math_work, f"Math Work {topic_data['topic']}"), "math_work.pdf")
-   else:
-       st.info("This tab is for Mathematics only. Select Mathematics subject to use.")
+            
+else:
+    st.info("This tab is for Mathematics only. Select Mathematics subject to use.")
 
 with tabs[4]:
     st.header("🛠️ Teacher Tools - NCDC 2026 - 7 Scenarios")
