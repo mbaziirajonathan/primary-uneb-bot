@@ -515,7 +515,7 @@ st.success(f"**Example Scenario**: {topic_data['scenario']}")
 
 tabs = st.tabs(["AI Chat + Voice", "Theory + Practicals", "Quiz + Evaluation", "Math Work", "Teacher Tools"])
 
- with tabs[0]:
+with tabs[0]:
     st.header("Ask TeacherK NCDC - 7 Scenarios")
     q = st.text_input("Type question here e.g: Teach me Isosceles Triangle", key="chat_q")
     if st.button("Ask", key="ask_btn") and q:
