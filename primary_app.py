@@ -75,34 +75,42 @@ CLOSING RULE: End each scenario with "Therefore the [answer] was [number][unit]"
 """
 
 # ===================== 2. DIAGRAM GENERATOR - PIXEL PERFECT =====================
-def draw_math_diagram(topic, measurements, question_text):
+ def draw_math_diagram(d_type, data, question_text):
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.set_aspect('equal'); plt.axis('off')
-    ax.set_title(f"{topic}\n{question_text}", fontsize=12, pad=20)
-    measurements = measurements.lower()
+    ax.set_title(f"{d_type}\n{question_text}", fontsize=12, pad=20)
+    data = data.lower() # MAKE EVERYTHING LOWERCASE TO AVOID BUG
 
-    if "triangle" in topic.lower():
+    # 1. TRIANGLE / CIRCLE / ANGLE
+    if d_type.lower() == "triangle":
         base = 8.0
-        if "base=" in measurements: base = float(measurements.split("base=")[1].split("cm")[0])
+        if "base=" in data:
+            try: base = float(data.split("base=")[1].split("cm")[0].strip())
+            except: base = 8.0 # fallback if parsing fails
         angle_deg = 50.0
-        if "angle=" in measurements: angle_deg = float(measurements.split("angle=")[1].split("deg")[0])
+        if "angle=" in data:
+            try: angle_deg = float(data.split("angle=")[1].split("deg")[0].strip())
+            except: angle_deg = 50.0
+
         angle_rad = math.radians(angle_deg)
-        apex_x = base / 2
-        apex_y = (base / 2) * math.tan(angle_rad)
+        apex_x = base / 2; apex_y = (base / 2) * math.tan(angle_rad) if angle_deg < 90 else base
         side_len = math.sqrt(apex_x**2 + apex_y**2)
         A, B, C = (0, 0), (base, 0), (apex_x, apex_y)
-        triangle = patches.Polygon([A, B, C], closed=True, fill=False, edgecolor='black', linewidth=2)
-        ax.add_patch(triangle)
+        triangle = patches.Polygon([A, B, C], closed=True, fill=False, edgecolor='black', linewidth=2); ax.add_patch(triangle)
         ax.text(A[0]-0.5, A[1]-0.5, "A", fontsize=12); ax.text(B[0]+0.5, B[1]-0.5, "B", fontsize=12); ax.text(C[0], C[1]+0.5, "C", fontsize=12)
         ax.text(base/2, -0.5, f"{base}cm", ha='center'); ax.text(apex_x/2 - 0.3, apex_y/2, f"{side_len:.1f}cm", ha='right'); ax.text((apex_x+base)/2 + 0.3, apex_y/2, f"{side_len:.1f}cm", ha='left')
         arc = patches.Arc(A, 1.5, 1.5, theta1=0, theta2=angle_deg, color='red', linewidth=1.5); ax.add_patch(arc); ax.text(1, 0.3, f"{angle_deg}°", color='red')
         ax.set_xlim(-2, base+2); ax.set_ylim(-2, apex_y+2)
 
-    elif "circle" in topic.lower() or "sector" in topic.lower():
+    elif d_type.lower() == "circle" or d_type.lower() == "sector":
         r = 7.0
-        if "radius=" in measurements: r = float(measurements.split("radius=")[1].split("cm")[0])
+        if "radius=" in data:
+            try: r = float(data.split("radius=")[1].split("cm")[0].strip())
+            except: r = 7.0
         angle_deg = 90.0
-        if "angle=" in measurements: angle_deg = float(measurements.split("angle=")[1].split("deg")[0])
+        if "angle=" in data:
+            try: angle_deg = float(data.split("angle=")[1].split("deg")[0].strip())
+            except: angle_deg = 90.0
         circle = patches.Circle((0,0), r, fill=False, edgecolor='black', linewidth=2); ax.add_patch(circle)
         sector = patches.Wedge((0,0), r, 0, angle_deg, fill=True, alpha=0.3, color='skyblue'); ax.add_patch(sector)
         theta2_rad = math.radians(angle_deg); x2 = r * math.cos(theta2_rad); y2 = r * math.sin(theta2_rad)
@@ -110,10 +118,39 @@ def draw_math_diagram(topic, measurements, question_text):
         ax.text(0, -r-0.5, f"Radius = {r}cm", ha='center'); mid_angle = math.radians(angle_deg/2); ax.text((r/2)*math.cos(mid_angle), (r/2)*math.sin(mid_angle), f"{angle_deg}°", ha='center')
         ax.set_xlim(-r-1, r+1); ax.set_ylim(-r-1, r+1)
 
-    elif "angle" in topic.lower():
-        ax.plot([0, 10], [0, 0], 'k-', linewidth=2); ax.plot([2, 8], [-2, 2], 'k-', linewidth=2)
-        ax.text(5, 0.3, "Straight Line = 180°", ha='center'); ax.text(1, -0.5, "A", ha='center'); ax.text(9, -0.5, "B", ha='center')
-        ax.set_xlim(-1, 11); ax.set_ylim(-3, 3)
+    # 2. VENN DIAGRAM - 2 SETS
+    elif d_type.lower() == "venn":
+        a=20; b=15; ab=5
+        if "a=" in data:
+            try: a = int(data.split("a=")[1].split(",")[0])
+            except: a=20
+        if "b=" in data:
+            try: b = int(data.split("b=")[1].split(",")[0])
+            except: b=15
+        if "ab=" in data:
+            try: ab = int(data.split("ab=")[1].split(",")[0])
+            except: ab=5
+        circle1 = patches.Circle((0.3, 0.5), 0.3, fill=False, edgecolor='blue', linewidth=2)
+        circle2 = patches.Circle((0.7, 0.5), 0.3, fill=False, edgecolor='green', linewidth=2)
+        ax.add_patch(circle1); ax.add_patch(circle2)
+        ax.text(0.3, 0.5, f"{a-ab}", ha='center', va='center', fontsize=14, color='blue')
+        ax.text(0.7, 0.5, f"{b-ab}", ha='center', va='center', fontsize=14, color='green')
+        ax.text(0.5, 0.5, f"{ab}", ha='center', va='center', fontsize=14)
+        ax.text(0.1, 0.8, "A", fontsize=14, color='blue'); ax.text(0.9, 0.8, "B", fontsize=14, color='green')
+        ax.set_xlim(0,1); ax.set_ylim(0,1)
+
+    # 3. BAR GRAPH
+    elif d_type.lower() == "bar":
+        labels = []; values = []
+        for item in data.split(","):
+            if ":" in item:
+                k,v = item.split(":"); labels.append(k.strip().title());
+                try: values.append(int(v))
+                except: values.append(0)
+        ax.bar(labels, values, color='teal')
+        ax.set_ylabel("Frequency"); ax.set_title(question_text)
+        for i,v in enumerate(values): ax.text(i, v+0.5, str(v), ha='center')
+        plt.xticks(rotation=15)
 
     plt.tight_layout()
     buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=150); buf.seek(0); plt.close(fig)
