@@ -548,8 +548,8 @@ with tabs[3]:
                 st.markdown(math_work)
                 st.download_button("Download Math Work as PDF", generate_pdf(math_work, f"Math Work {topic_data['topic']}"), "math_work.pdf")
             
-else:
-    st.info("This tab is for Mathematics only. Select Mathematics subject to use.")
+            else:
+                st.info("This tab is for Mathematics only. Select Mathematics subject to use.")
 
 with tabs[4]:
     st.header("🛠️ Teacher Tools - NCDC 2026 - 7 Scenarios")
@@ -559,73 +559,73 @@ with tabs[4]:
         "3. Beginning of Term Test",
         "4. Mid Term Exam Generator",
         "5. End of Term Exam + Marking Guide"
-    ])
+    ], key="tool_select")
     client = get_client()
 
     if tool_choice == "1. Lesson Plan Generator":
         st.subheader("📝 NCDC Lesson Plan")
-        duration = st.selectbox("Duration", ["40 Minutes", "80 Minutes Double"])
-        if st.button("Generate Lesson Plan"):
+        duration = st.selectbox("Duration", ["40 Minutes", "80 Minutes Double"], key="duration_select")
+        if st.button("Generate Lesson Plan", key="lp_btn"):
             if client:
                 with st.spinner("Generating..."):
                     prompt = f"{SYSTEM_PROMPT}\nWrite full NCDC 2026 lesson plan for {grade} {subject} Topic: {topic_data['topic']}. Duration: {duration}. Must include 7 scenarios and multiple methods."
                     res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], max_tokens=4000)
                     plan = res.choices[0].message.content
                     st.markdown(plan)
-                    st.download_button("Download Lesson Plan PDF", generate_pdf(plan, f"Lesson Plan {grade} {topic_data['topic']}"), "lesson_plan.pdf")
+                    st.download_button("📥 Download Lesson Plan PDF", generate_pdf(plan, f"Lesson Plan {grade} {topic_data['topic']}"), "lesson_plan.pdf")
 
     if tool_choice == "2. Report Card Generator":
         st.subheader("📊 Report Card Generator")
-        pupil_name = st.text_input("Pupil Full Name")
-        term = st.selectbox("Term", ["Term 1", "Term 2", "Term 3"])
-        marks = st.text_area("Enter marks: Subject, Score/100", "Mathematics, 78\nEnglish, 65\nScience, 82\nSST, 70")
-        if st.button("Generate Report Card"):
+        pupil_name = st.text_input("Pupil Full Name", key="pupil_name")
+        term = st.selectbox("Term", ["Term 1", "Term 2", "Term 3"], key="term_select")
+        marks = st.text_area("Enter marks: Subject, Score/100", "Mathematics, 78\nEnglish, 65\nScience, 82\nSST, 70", key="marks_input")
+        if st.button("Generate Report Card", key="rc_btn"):
             try:
                 data = [x.split(",") for x in marks.split("\n") if x.strip()]
                 df = pd.DataFrame(data, columns=["Subject","Score"])
                 df["Score"] = df["Score"].astype(int)
                 df["Grade"] = df["Score"].apply(lambda x: "D1" if x>=80 else "C3" if x>=65 else "P7" if x>=50 else "F9")
-                st.dataframe(df)
+                st.dataframe(df, use_container_width=True)
                 avg = df["Score"].mean()
                 comment = "Excellent performance" if avg>=75 else "Good performance" if avg>=60 else "Needs to work harder"
                 report_text = f"REPORT CARD\nName: {pupil_name}\nClass: {grade}\nTerm: {term}\n\n{df.to_string()}\n\nAverage: {avg:.1f}%\nComment: {comment}"
                 st.success(f"Average: {avg:.1f}% | Comment: {comment}")
-                st.download_button("Download Report Card PDF", generate_pdf(report_text, f"Report Card {pupil_name}"), "report_card.pdf")
+                st.download_button("📥 Download Report Card PDF", generate_pdf(report_text, f"Report Card {pupil_name}"), "report_card.pdf")
             except:
                 st.error("Error in marks format. Use: Subject, 78")
 
     if tool_choice == "3. Beginning of Term Test":
         st.subheader("📘 Beginning of Term Diagnostic Test")
-        if st.button("Generate BOT Test"):
+        if st.button("Generate BOT Test", key="bot_btn"):
             if client:
                 with st.spinner("Generating 20 Scenario Questions..."):
                     prompt = f"{SYSTEM_PROMPT}\nGenerate 20 question Beginning of Term diagnostic test for {grade} {subject}. Use at least 7 different Uganda scenarios. Include marking guide."
                     res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], max_tokens=4000)
                     bot = res.choices[0].message.content
                     st.markdown(bot)
-                    st.download_button("Download BOT Test PDF", generate_pdf(bot, f"BOT Test {grade} {subject}"), "bot_test.pdf")
+                    st.download_button("📥 Download BOT Test PDF", generate_pdf(bot, f"BOT Test {grade} {subject}"), "bot_test.pdf")
 
     if tool_choice == "4. Mid Term Exam Generator":
         st.subheader("📗 Mid Term Exam")
-        topics_covered = st.text_input("Topics covered so far, comma separated", topic_data['topic'])
-        if st.button("Generate Mid Term Exam"):
+        topics_covered = st.text_input("Topics covered so far, comma separated", topic_data['topic'], key="topics_input")
+        if st.button("Generate Mid Term Exam", key="mid_btn"):
             if client:
                 with st.spinner("Generating 50 Marks Exam..."):
                     prompt = f"{SYSTEM_PROMPT}\nGenerate Mid Term Exam for {grade} {subject}. Topics: {topics_covered}. 50 marks. Use at least 7 different scenarios. Include marking guide."
                     res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], max_tokens=4000)
                     midterm = res.choices[0].message.content
                     st.markdown(midterm)
-                    st.download_button("Download Mid Term PDF", generate_pdf(midterm, f"Mid Term {grade} {subject}"), "midterm.pdf")
+                    st.download_button("📥 Download Mid Term PDF", generate_pdf(midterm, f"Mid Term {grade} {subject}"), "midterm.pdf")
 
     if tool_choice == "5. End of Term Exam + Marking Guide":
         st.subheader("📙 End of Term Exam - 100 Marks PLE Style")
-        if st.button("Generate End of Term Exam"):
+        if st.button("Generate End of Term Exam", key="eot_btn"):
             if client:
                 with st.spinner("Generating 100 Marks PLE Style Exam..."):
                     prompt = f"{SYSTEM_PROMPT}\nGenerate End of Term Exam for {grade} {subject}. 100 marks PLE style. Use at least 7 different scenarios. Section A: 40 MCQ. Section B: 10 short answer. Section C: 5 essay. Include detailed marking guide."
                     res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":SYSTEM_PROMPT},{"role":"user","content":prompt}], max_tokens=4000)
                     eot = res.choices[0].message.content
                     st.markdown(eot)
-                    st.download_button("Download EOT Exam PDF", generate_pdf(eot, f"End of Term {grade} {subject}"), "eot_exam.pdf")
+                    st.download_button("📥 Download EOT Exam PDF", generate_pdf(eot, f"End of Term {grade} {subject}"), "eot_exam.pdf")
 
-st.sidebar.caption("NCDC 2026 Competency-Based | P4-P7 | 6 Subjects Locked | 7 Scenarios Per Mode")
+st.sidebar.caption("NCDC 2026 Competency-Based | P4-P7 | 6 Subjects Locked | 7 Scenarios Per Mode")  
