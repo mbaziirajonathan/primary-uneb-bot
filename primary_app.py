@@ -17,18 +17,11 @@ st.warning("⚠️ **DISCLAIMER**: TEACHERK follows NCDC 2026 Uganda Primary Com
 
 MASTER_PROMPT = """
 You are TEACHERK, a Senior NCDC 2026 Uganda PLE Examiner and Master Teacher for PRIMARY P4-P7.
-You think like Meta AI: flexible, deep reasoning, but you ONLY teach NCDC 2026 Uganda Primary Curriculum.
-
-ANTI-HALLUCINATION & ACCURACY RULE - CRITICAL:
-1. NEVER invent measurements. Only use measurements given in the question.
-2. MATH UNITS RULE: Every final math answer MUST end with correct unit and "Therefore the... was [number][unit]"
-3. ENGLISH PUNCTUATION RULE: Every sentence must end with.? or! Capital letters must be correct.
-4. MARKING RULE: PUPILS LOSE MARKS FOR JUMPING STEPS AND MISSING UNITS.
-
-MOCK PLE PAPER STRUCTURE:
-SECTION A: 20 STRAIGHT QUESTIONS. Short, direct, test recall and basic skills. 1-2 marks each.
-SECTION B: 30 SCENARIO-BASED QUESTIONS. Each must have a Ugandan context scenario + a clear TASK to do. 2-4 marks each. Show all working.
-
+RULE 1: ONLY ANSWER WHAT THE USER SPECIFICALLY REQUESTS. If they ask for "only scenario questions", do NOT give straight questions.
+RULE 2: If user asks for Ugandan examples, use markets, boda, shamba, ugsh, districts in Uganda.
+RULE 3: MATH UNITS RULE: Every final math answer MUST end with correct unit. "Therefore the... was [number][unit]"
+RULE 4: ENGLISH PUNCTUATION RULE: Every sentence must end with.? or!
+RULE 5: MARKING RULE: DEDUCT FOR NO UNITS AND JUMPED STEPS.
 DIAGRAM RULE: [DIAGRAM: Topic=Triangle, Measurements="Base=8cm, Angle=50deg", Question="Construct triangle ABC"]
 """
 
@@ -40,12 +33,11 @@ def draw_math_diagram(d_type, measurements, question_text):
     def safe_float(s, default):
         try: return float(re.findall(r"[\d.]+", s)[0])
         except: return default
-
     if d_type and "triangle" in d_type.lower():
         base = safe_float(data.split("base=")[1], 8.0) if "base=" in data else 8.0
         angle_deg = safe_float(data.split("angle=")[1], 50.0) if "angle=" in data else 50.0
         angle_rad = math.radians(angle_deg); apex_x = base / 2; apex_y = (base / 2) * math.tan(angle_rad) if angle_deg < 90 else base
-        side_len = math.sqrt(apex_x**2 + apex_y**2); A, B, C = (0, 0), (base, 0), (apex_x, apex_y)
+        A, B, C = (0, 0), (base, 0), (apex_x, apex_y)
         triangle = patches.Polygon([A, B, C], closed=True, fill=False, edgecolor='black', linewidth=2.5); ax.add_patch(triangle)
         ax.plot([A[0],B[0]],[A[1],B[1]],'ko', markersize=6); ax.plot([B[0],C[0]],[B[1],C[1]],'ko', markersize=6); ax.plot([C[0],A[0]],[C[1],A[1]],'ko', markersize=6)
         ax.text(A[0]-0.5, A[1]-0.5, "A", fontsize=12, fontweight='bold'); ax.text(B[0]+0.2, B[1]-0.5, "B", fontsize=12, fontweight='bold'); ax.text(C[0], C[1]+0.5, "C", fontsize=12, fontweight='bold')
@@ -124,16 +116,18 @@ def get_all_topics_text():
         for subject, topics in subjects.items():
             for t in topics: all_topics.append(f"{grade} {subject}: {t['topic']}")
     return "\n".join(all_topics)
+def get_all_topics_for_subject(grade, subject):
+    return [t["topic"] for t in PRIMARY_DB[f"PRIMARY_{grade[1:]}"][subject]]
 
-def smart_groq_call(client, system_prompt, user_prompt, model, max_tokens=4000):
-    try:
-        res = client.chat.completions.create(model=model, messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], temperature=0.3, max_tokens=max_tokens)
-        return res
-    except RateLimitError:
-        st.error(f"Model {model} is busy. Try switching model below.")
-        return None
-    except Exception as e:
-        st.error(f"Error: {e}"); return None
+def smart_groq_call(client, system_prompt, user_prompt, max_tokens=4000):
+    models_to_try = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"] # AUTO SWITCH
+    for model in models_to_try:
+        try:
+            res = client.chat.completions.create(model=model, messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], temperature=0.3, max_tokens=max_tokens)
+            return res
+        except RateLimitError: continue
+        except Exception: continue
+    st.error("All Groq models busy."); return None
 
 def get_client():
     try: return Groq(api_key=st.secrets["GROQ_API_KEY"])
@@ -145,23 +139,10 @@ def generate_pdf(content, title):
     width, height = A4
     c.setFont("Helvetica-Bold", 14); c.drawString(40, height-50, title)
     y = height - 80; c.setFont("Helvetica", 9)
-    for line in content.split('\n')[:150]:
+    for line in content.split('\n')[:200]:
         c.drawString(40, y, line[:95]); y -= 14
         if y < 50: c.showPage(); y = height - 50; c.setFont("Helvetica", 9)
     c.save(); buffer.seek(0); return buffer
-
-def generate_report_card_pdf(student_name, class_name, results_df):
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
-    c.setFont("Helvetica-Bold", 16); c.drawCentredString(width/2, height-50, "TEACHERK PRIMARY SCHOOL REPORT CARD")
-    c.setFont("Helvetica", 12); c.drawString(40, height-80, f"Student: {student_name}"); c.drawString(40, height-100, f"Class: {class_name}")
-    c.drawString(40, height-120, f"Term: {datetime.now().strftime('%B %Y')}")
-    data = [results_df.columns.tolist()] + results_df.values.tolist()
-    from reportlab.platypus import Table, TableStyle
-    from reportlab.lib import colors
-    t = Table(data, colWidths=[150, 80, 80, 200])
-    t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.grey),('TEXTCOLOR',(0,0),(-1,0),colors.whitesmoke),('ALIGN',(0,0),(-1,-1),'CENTER'),('GRID',(0,0),(-1,-1),1,colors.black)]))
-    t.wrapOn(c, width, height); t.drawOn(c, 40, height-300); c.save(); buffer.seek(0); return buffer
 
 # ===================== 4. PASSWORD =====================
 def check_password():
@@ -178,58 +159,63 @@ def check_password():
 check_password()
 
 # ===================== 5. MAIN APP =====================
-st.title("🐢 TEACHERK PRIMARY 2026 NCDC - MOCK PLE GENERATOR")
+st.title("🐢 TEACHERK PRIMARY 2026 NCDC")
 st.sidebar.success(f"Logged in as: {st.session_state.user_type}")
-
-# LLAMA MODEL SWITCH RESTORED
-model_choice = st.sidebar.selectbox("🧠 Llama Model",
-    ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"],
-    index=0, key="model_switch")
-st.sidebar.caption("Switch if one model is slow")
 
 grade = st.sidebar.selectbox("Class", ["P4","P5","P6","P7"], key="grade_select")
 subject = st.sidebar.selectbox("Subject", list(PRIMARY_CURRICULUM_MAP[grade].keys()), key="subject_select")
-topic = st.sidebar.selectbox("Topic", PRIMARY_CURRICULUM_MAP[grade][subject], key="topic_select")
+
+# SCROLLABLE TOPICS DROPDOWN - FIXED
+st.sidebar.markdown("**Topic**")
+topic_list = PRIMARY_CURRICULUM_MAP[grade][subject]
+topic = st.sidebar.selectbox("", topic_list, key="topic_select_scroll", label_visibility="collapsed")
 
 SYLLABUS_CONTEXT = get_all_topics_text()
+ALL_SUBJECT_TOPICS = get_all_topics_for_subject(grade, subject)
 
 tabs = st.tabs(["AI Chat", "Theory", "MOCK PLE 50Q PAPER", "Math Work", "Teacher Tools"])
 
-with tabs[0]:
-    st.header("Ask TeacherK Anything")
-    q = st.text_input("🔍 Ask your question", key="chat_q")
-    if st.button("Ask", key="ask_btn") and q:
+def render_ask_bar(tab_name):
+    st.markdown("---")
+    q = st.text_input(f"🔍 Ask TeacherK Anything in {tab_name}", key=f"ask_{tab_name}")
+    if st.button("Ask", key=f"ask_btn_{tab_name}") and q:
         client = get_client()
         if client:
-            prompt = f"{MASTER_PROMPT}\n\nSYLLABUS:\n{SYLLABUS_CONTEXT}\n\nContext: {grade} {subject}\nQUESTION: {q}\n\nAnswer directly. Use units for math. Use full punctuation for English."
+            prompt = f"{MASTER_PROMPT}\n\nFULL SYLLABUS FOR CONTEXT:\n{SYLLABUS_CONTEXT}\n\nUser Context: {grade} {subject}\nUSER REQUEST: {q}\n\nFollow the request exactly. Do not add extra questions."
             with st.spinner("Reasoning..."):
-                res = smart_groq_call(client, MASTER_PROMPT, prompt, model_choice)
+                res = smart_groq_call(client, MASTER_PROMPT, prompt)
                 if res:
                     answer = res.choices[0].message.content; st.markdown(answer)
                     diagram_info = parse_diagram_tag(answer)
                     if diagram_info: st.image(draw_math_diagram(diagram_info.get("Topic",""), diagram_info.get("Measurements",""), diagram_info.get("Question","")), use_container_width=True)
-                    st.download_button("📥 Download PDF", generate_pdf(answer, "Answer"), "answer.pdf")
+                    st.download_button("📥 Download PDF", generate_pdf(answer, "Answer"), f"answer_{tab_name}.pdf", key=f"dl_{tab_name}")
 
-with tabs[1]: # THEORY TAB RESTORED
-    st.header(f"Theory: {grade} {subject} - {topic}")
-    if st.button("Generate Full Theory Notes", key="theory_btn"):
+with tabs[0]:
+    st.header("AI Chat - Ask Anything")
+    st.info("Example: 'Give me only scenario based questions with Ugandan examples on Fractions'")
+    render_ask_bar("AI Chat")
+
+with tabs[1]:
+    st.header(f"Theory: {grade} {subject}")
+    if st.button("Generate Full Theory Notes for Selected Topic", key="theory_btn"):
         client = get_client()
         if client:
-            prompt = f"{MASTER_PROMPT}\nGenerate detailed NCDC 2026 theory notes for {grade} {subject} Topic: {topic}. Include: Definition, Key Concepts, 3 Worked Examples, and Summary. Use simple language for pupils."
+            prompt = f"{MASTER_PROMPT}\nGenerate detailed NCDC 2026 theory notes for {grade} {subject} Topic: {topic}. Include: Definition, Key Concepts, 3 Worked Examples, and Summary."
             with st.spinner("Generating Theory..."):
-                res = smart_groq_call(client, MASTER_PROMPT, prompt, model_choice, max_tokens=3000)
-                if res:
-                    theory = res.choices[0].message.content; st.markdown(theory)
-                    st.download_button("📥 Download Theory PDF", generate_pdf(theory, f"Theory {topic}"), "theory.pdf")
+                res = smart_groq_call(client, MASTER_PROMPT, prompt, max_tokens=3000)
+                if res: theory = res.choices[0].message.content; st.markdown(theory)
+                st.download_button("📥 Download Theory PDF", generate_pdf(theory, f"Theory {topic}"), "theory.pdf")
+    render_ask_bar("Theory")
 
 with tabs[2]:
-    st.header("MOCK PLE PAPER GENERATOR: SECTION A:20 + SECTION B:30 = 50Q")
-    if st.button("Generate 50Q MOCK PLE PAPER", key="mock_btn", type="primary"):
+    st.header("MOCK PLE PAPER GENERATOR: ROTATES WHOLE SUBJECT")
+    num_q = st.slider("Number of Questions", 20, 50, 50, key="mock_num_q")
+    if st.button("Generate MOCK PLE From WHOLE SUBJECT", key="mock_btn", type="primary"):
         client = get_client()
         if client:
-            prompt = f"{MASTER_PROMPT}\nGenerate a FULL MOCK PLE PAPER for {grade} {subject} Topic: {topic}\n\nSTRICT STRUCTURE:\n**SECTION A: 20 STRAIGHT QUESTIONS [40 MARKS]**\nQ1.... Q20.\n\n**SECTION B: 30 SCENARIO-BASED QUESTIONS [60 MARKS]**\n### **Question 21: [Title]**\n[Scenario]\n**TASK:** [What to do]\n**SOLUTION:** Show all steps.\n... continue to Question 50.\n\n**MARKING GUIDE**\nProvide answers for all 50 questions. For math, answers MUST have units. For English, answers MUST be punctuated well."
-            with st.spinner("Generating 50Q Mock PLE..."):
-                res = smart_groq_call(client, MASTER_PROMPT, prompt, model_choice, max_tokens=4000)
+            prompt = f"{MASTER_PROMPT}\nGenerate a FULL MOCK PLE PAPER for {grade} {subject}. ROTATE QUESTIONS ACROSS ALL THESE TOPICS: {ALL_SUBJECT_TOPICS}. Do NOT focus on only {topic}.\n\nSTRICT STRUCTURE:\n**SECTION A: 20 STRAIGHT QUESTIONS [40 MARKS]**\nQ1.... Q20.\n\n**SECTION B: 30 SCENARIO-BASED QUESTIONS [60 MARKS]**\n### **Question 21: [Title with Ugandan Context]**\n[Scenario]\n**TASK:** [What to do]\n**SOLUTION:** Show all steps with units.\n... continue to Question {num_q}.\n\n**MARKING GUIDE**"
+            with st.spinner("Generating 50Q Mock PLE from whole subject..."):
+                res = smart_groq_call(client, MASTER_PROMPT, prompt, max_tokens=4000)
                 if res:
                     paper = res.choices[0].message.content; st.markdown(paper)
                     diagrams = re.findall(r'\[DIAGRAM:.*?\]', paper)
@@ -237,39 +223,35 @@ with tabs[2]:
                         info = parse_diagram_tag(d)
                         if info: st.image(draw_math_diagram(info.get("Topic",""), info.get("Measurements",""), info.get("Question","")), use_container_width=True)
                     st.download_button("📥 Download 50Q MOCK PLE PDF", generate_pdf(paper, f"MOCK PLE {grade} {subject}"), "mock_ple.pdf")
+    render_ask_bar("Mock PLE")
 
-with tabs[3]: # MATH WORK TAB RESTORED
+with tabs[3]:
     st.header("Mathematics Worked Examples")
     if subject == "Mathematics":
-        if st.button("Generate 7 Worked Examples", key="mathwork_btn"):
+        if st.button("Generate 7 Worked Examples From WHOLE SUBJECT", key="mathwork_btn"):
             client = get_client()
             if client:
-                prompt = f"{MASTER_PROMPT}\nGenerate 7 fully worked scenario-based math questions for {grade} {subject} Topic: {topic}. EACH QUESTION MUST SHOW EVERY STEP. USE EXACT MEASUREMENTS FROM QUESTION. End every answer with unit."
+                prompt = f"{MASTER_PROMPT}\nGenerate 7 fully worked scenario-based math questions for {grade} {subject}. ROTATE ACROSS ALL THESE TOPICS: {ALL_SUBJECT_TOPICS}. EACH QUESTION MUST SHOW EVERY STEP. USE UGANDAN CONTEXT."
                 with st.spinner("Generating Math Work..."):
-                    res = smart_groq_call(client, MASTER_PROMPT, prompt, model_choice, max_tokens=4000)
-                    if res:
-                        math_work = res.choices[0].message.content; st.markdown(math_work)
-                        diagram_info = parse_diagram_tag(math_work)
-                        if diagram_info: st.image(draw_math_diagram(diagram_info.get("Topic",""), diagram_info.get("Measurements",""), diagram_info.get("Question","")), use_container_width=True)
-                        st.download_button("📥 Download Math Work PDF", generate_pdf(math_work, f"Math Work {topic}"), "math_work.pdf", key="dl_math")
+                    res = smart_groq_call(client, MASTER_PROMPT, prompt, max_tokens=4000)
+                    if res: math_work = res.choices[0].message.content; st.markdown(math_work)
+                    st.download_button("📥 Download Math Work PDF", generate_pdf(math_work, f"Math Work {grade}"), "math_work.pdf")
     else: st.info("Select Mathematics subject to use.")
+    render_ask_bar("Math Work")
 
 with tabs[4]:
     st.header("Teacher Tools - Automation Suite")
     st.markdown("---")
-    st.subheader("1. Test / Exam Paper Generator")
-    col1, col2 = st.columns(2)
-    with col1: exam_type = st.selectbox("Exam Type", ["Weekly Test", "Mid Term", "End of Term", "Mock PLE"], key="exam_type")
-    with col2: num_q = st.slider("Number of Questions", 10, 50, 50, key="num_q")
-    if st.button("Generate Test Paper", key="exam_btn"):
+    st.subheader("1. Test / Exam Paper Generator - WHOLE SUBJECT")
+    num_q_exam = st.slider("Number of Questions", 10, 50, 50, key="exam_num_q")
+    if st.button("Generate Test Paper From WHOLE SUBJECT", key="exam_btn"):
         client = get_client()
         if client:
-            prompt = f"{MASTER_PROMPT}\nGenerate a {exam_type} for {grade} {subject} covering {topic}. Create {num_q} questions. Section A:20 Straight. Section B:30 Scenario. Provide full marking guide with steps and units."
+            prompt = f"{MASTER_PROMPT}\nGenerate a Test for {grade} {subject}. ROTATE ACROSS ALL TOPICS: {ALL_SUBJECT_TOPICS}. Create {num_q_exam} questions. Follow user request on question type."
             with st.spinner("Generating Exam Paper..."):
-                res = smart_groq_call(client, MASTER_PROMPT, prompt, model_choice, max_tokens=4000)
+                res = smart_groq_call(client, MASTER_PROMPT, prompt, max_tokens=4000)
                 if res: exam = res.choices[0].message.content; st.markdown(exam)
-                st.download_button("📥 Download Exam PDF", generate_pdf(exam, f"{exam_type} {grade} {subject}"), "exam.pdf", key="dl_exam")
-
+                st.download_button("📥 Download Exam PDF", generate_pdf(exam, f"Test {grade} {subject}"), "exam.pdf")
     st.markdown("---")
     st.subheader("2. Marking / Grading Assistant")
     uploaded_file = st.file_uploader("Upload Pupils Work.txt or.pdf", type=["txt","pdf"], key="mark_upload")
@@ -281,29 +263,19 @@ with tabs[4]:
             content = uploaded_file.read().decode("utf-8") if uploaded_file else student_answers
             prompt = f"You are a UNEB Examiner. Mark this {grade} {subject} work strictly. Deduct 1 mark for missing units and jumped steps.\n\nMARKING SCHEME:\n{marking_scheme}\n\nSTUDENT WORK:\n{content}\n\nProvide: Total Score, Breakdown, Comments."
             with st.spinner("Marking..."):
-                res = smart_groq_call(client, MASTER_PROMPT, prompt, model_choice, max_tokens=2000)
+                res = smart_groq_call(client, MASTER_PROMPT, prompt, max_tokens=2000)
                 if res: marked = res.choices[0].message.content; st.markdown(marked)
-                st.download_button("📥 Download Marked Report", generate_pdf(marked, "Marked Work"), "marked.pdf", key="dl_marked")
-
+                st.download_button("📥 Download Marked Report", generate_pdf(marked, "Marked Work"), "marked.pdf")
     st.markdown("---")
-    st.subheader("3. Report Card Generator")
-    report_file = st.file_uploader("Upload Results CSV", type=["csv"], key="report_upload")
-    student_name = st.text_input("Student Name", key="student_name")
-    if st.button("Generate Report Card", key="report_btn") and report_file and student_name:
-        df = pd.read_csv(report_file)
-        st.dataframe(df)
-        pdf = generate_report_card_pdf(student_name, grade, df)
-        st.download_button("📥 Download Report Card PDF", pdf, f"ReportCard_{student_name}.pdf", key="dl_report")
-
-    st.markdown("---")
-    st.subheader("4. Scheme of Work Generator")
+    st.subheader("3. Scheme of Work Generator")
     if st.button("Generate Scheme of Work", key="scheme_btn"):
         client = get_client()
         if client:
             prompt = f"Create a 1-week scheme of work for {grade} {subject} Topic: {topic} following NCDC 2026. Include: Topic, Competency, Learning Activities, Life Skills, Values, Assessment."
             with st.spinner("Generating..."):
-                res = smart_groq_call(client, MASTER_PROMPT, prompt, model_choice, max_tokens=2000)
+                res = smart_groq_call(client, MASTER_PROMPT, prompt, max_tokens=2000)
                 if res: scheme = res.choices[0].message.content; st.markdown(scheme)
-                st.download_button("📥 Download Scheme PDF", generate_pdf(scheme, f"Scheme {topic}"), "scheme.pdf", key="dl_scheme")
+                st.download_button("📥 Download Scheme PDF", generate_pdf(scheme, f"Scheme {topic}"), "scheme.pdf")
+    render_ask_bar("Teacher Tools")
 
-st.sidebar.caption("NCDC 2026 | 210+ Topics | Contact: " + CONTACT)
+st.sidebar.caption("NCDC 2026 | 210+ Topics | Auto Model Switch | Contact: " + CONTACT)
