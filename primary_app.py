@@ -171,10 +171,24 @@ def get_client():
 
 def generate_pdf(content, title):
     buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
-    c.setFont("Helvetica-Bold", 14); c.drawString(40, height-50, title); y = height - 80; c.setFont("Helvetica", 9)
-    for line in content.split('\n')[:150]: c.drawString(40, y, line[:95]); y -= 14; if y < 50: c.showPage(); y = height - 50
-    c.save(); buffer.seek(0); return buffer
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(40, height-50, title)
+    y = height - 80
+    c.setFont("Helvetica", 9)
+    
+    for line in content.split('\n')[:150]:
+        c.drawString(40, y, line[:95])
+        y -= 14
+        if y < 50:  # New page if we reach bottom
+            c.showPage()
+            y = height - 50
+            c.setFont("Helvetica", 9) # Reset font on new page
+    
+    c.save()
+    buffer.seek(0)
+    return buffer
 
 # ===================== 4. PASSWORD =====================
 def check_password():
