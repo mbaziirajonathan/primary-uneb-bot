@@ -4,6 +4,3 @@ pandas
 numpy
 matplotlib
 reportlab
-gtts
-SpeechRecognition
-pyaudio
