@@ -112,47 +112,38 @@ PRIMARY_DB = {
 }
 
 PRIMARY_CURRICULUM_MAP = {g.replace("PRIMARY_","P"): {s: [t["topic"] for t in topics] for s, topics in d.items()} for g,d in PRIMARY_DB.items()}
-def get_all_topics_text():
-    all_topics = []
-    for grade, subjects in PRIMARY_DB.items():
-        for subject, topics in subjects.items():
-            for t in topics: all_topics.append(f"{grade} {subject}: {t['topic']}")
-    return "\n".join(all_topics)
 def get_all_topics_for_subject(grade, subject):
     return [t["topic"] for t in PRIMARY_DB[f"PRIMARY_{grade[1:]}"][subject]]
 
+# ===================== 4. SMART GROQ CALL - FIXED =====================
 if "cache" not in st.session_state: st.session_state.cache = {}
 
 def smart_groq_call(client, system_prompt, user_prompt, max_tokens=4000):
-    # 1. CHECK CACHE FIRST - saves tokens
     cache_key = hashlib.md5((system_prompt + user_prompt).encode()).hexdigest()
     if cache_key in st.session_state.cache:
         return st.session_state.cache[cache_key]
 
-    models_to_try = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"]
-    
-    for attempt in range(3): # retry 3 times with backoff
+    # FIXED MODELS: 3.1-70b removed, added gemma fallback
+    models_to_try = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]
+
+    # TRIM PROMPT TO AVOID 6000 TPM ERROR
+    if len(user_prompt) > 4000:
+        user_prompt = user_prompt[:4000] + "\n\n[Context trimmed to fit model limits]"
+
+    for attempt in range(3):
         for model in models_to_try:
             try:
-                res = client.chat.completions.create(
-                    model=model, 
-                    messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], 
-                    temperature=0.3, 
-                    max_tokens=max_tokens
-                )
-                st.session_state.cache[cache_key] = res # save to cache
+                res = client.chat.completions.create(model=model, messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], temperature=0.3, max_tokens=max_tokens)
+                st.session_state.cache[cache_key] = res
                 return res
-            except RateLimitError: 
-                wait = 2 ** attempt # 1s, 2s, 4s
-                time.sleep(wait)
+            except RateLimitError:
+                time.sleep(2 ** attempt)
                 continue
-            except Exception as e:
-                st.warning(f"{model} failed: {e}")
+            except Exception:
                 continue
-    
-    st.error("All Groq models busy. Try again in 30s or upgrade API key.")
+    st.error("All Groq models busy. Please wait 30s and try again.")
     return None
-    
+
 def get_client():
     try: return Groq(api_key=st.secrets["GROQ_API_KEY"])
     except: st.error("Add GROQ_API_KEY in Streamlit Secrets"); return None
@@ -168,7 +159,7 @@ def generate_pdf(content, title):
         if y < 50: c.showPage(); y = height - 50; c.setFont("Helvetica", 9)
     c.save(); buffer.seek(0); return buffer
 
-# ===================== 4. PASSWORD =====================
+# ===================== 5. PASSWORD =====================
 def check_password():
     APP_PW = st.secrets.get("PRIMARY_APP_PASSWORD", "PRIMARY2026")
     ADMIN_PW = st.secrets.get("ADMIN_PASSWORD", "ADMIN256")
@@ -182,19 +173,16 @@ def check_password():
         st.stop()
 check_password()
 
-# ===================== 5. MAIN APP =====================
+# ===================== 6. MAIN APP =====================
 st.title("🐢 TEACHERK PRIMARY 2026 NCDC")
 st.sidebar.success(f"Logged in as: {st.session_state.user_type}")
 
 grade = st.sidebar.selectbox("Class", ["P4","P5","P6","P7"], key="grade_select")
 subject = st.sidebar.selectbox("Subject", list(PRIMARY_CURRICULUM_MAP[grade].keys()), key="subject_select")
-
-# SCROLLABLE TOPICS DROPDOWN - FIXED
 st.sidebar.markdown("**Topic**")
 topic_list = PRIMARY_CURRICULUM_MAP[grade][subject]
 topic = st.sidebar.selectbox("", topic_list, key="topic_select_scroll", label_visibility="collapsed")
 
-SYLLABUS_CONTEXT = get_all_topics_text()
 ALL_SUBJECT_TOPICS = get_all_topics_for_subject(grade, subject)
 
 tabs = st.tabs(["AI Chat", "Theory", "MOCK PLE 50Q PAPER", "Math Work", "Teacher Tools"])
@@ -205,7 +193,8 @@ def render_ask_bar(tab_name):
     if st.button("Ask", key=f"ask_btn_{tab_name}") and q:
         client = get_client()
         if client:
-            prompt = f"{MASTER_PROMPT}\n\nFULL SYLLABUS FOR CONTEXT:\n{SYLLABUS_CONTEXT}\n\nUser Context: {grade} {subject}\nUSER REQUEST: {q}\n\nFollow the request exactly. Do not add extra questions."
+            # FIXED: Don't send full syllabus, only context needed
+            prompt = f"{MASTER_PROMPT}\n\nUser Context: {grade} {subject} Topic: {topic}\nUSER REQUEST: {q}\n\nFollow the request exactly. Do not add extra questions."
             with st.spinner("Reasoning..."):
                 res = smart_groq_call(client, MASTER_PROMPT, prompt)
                 if res:
