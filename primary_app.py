@@ -73,8 +73,12 @@ def draw_math_diagram(d_type, measurements, question_text):
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.set_aspect('equal'); plt.axis('off'); ax.set_title(f"{d_type}\n{question_text}", fontsize=12, pad=20)
     data = measurements.lower() if measurements else ""
-    def safe_float(s, default): try: return float(re.findall(r"[\d.]+", s)[0]); except: return default
-    def safe_int(s, default): try: return int(re.findall(r"\d+", s)[0]); except: return default
+    def safe_float(s, default):
+        try: return float(re.findall(r"[\d.]+", s)[0])
+        except: return default
+    def safe_int(s, default):
+        try: return int(re.findall(r"\d+", s)[0])
+        except: return default
 
     if d_type and "triangle" in d_type.lower():
         base = safe_float(data.split("base=")[1], 8.0) if "base=" in data else 8.0
@@ -86,20 +90,33 @@ def draw_math_diagram(d_type, measurements, question_text):
         ax.text(base/2, -0.5, f"{base}cm", ha='center'); ax.text(apex_x/2 - 0.3, apex_y/2, f"{side_len:.1f}cm", ha='right'); ax.text((apex_x+base)/2 + 0.3, apex_y/2, f"{side_len:.1f}cm", ha='left')
         arc = patches.Arc(A, 1.5, 1.5, theta1=0, theta2=angle_deg, color='red', linewidth=1.5); ax.add_patch(arc); ax.text(1, 0.3, f"{angle_deg}°", color='red')
         ax.set_xlim(-2, base+2); ax.set_ylim(-2, apex_y+2)
-    elif d_type and any(x in d_type.lower() for x in ["square", "rectangle", "rhombus", "kite"]):
-        w = safe_float(data.split("width=")[1], 6.0) if "width=" in data else safe_float(data.split("length=")[1], 6.0) if "length=" in data else 6.0
-        h = safe_float(data.split("height=")[1], 4.0) if "height=" in data else w if "square" in d_type.lower() else 4.0
-        if "rhombus" in d_type.lower(): offset = w * 0.3; A, B, C, D = (offset, 0), (w+offset, 0), (w, h), (0, h)
-        elif "kite" in d_type.lower(): A, B, C, D = (w/2, 0), (w, h/2), (w/2, h), (0, h/2)
-        else: A, B, C, D = (0, 0), (w, 0), (w, h), (0, h)
+
+    elif d_type and any(x in d_type.lower() for x in ["square", "rectangle", "rhombus", "kite"]): # <-- THIS WAS LINE 76
+        w = 6.0
+        if "width=" in data: w = safe_float(data.split("width=")[1], 6.0)
+        elif "length=" in data: w = safe_float(data.split("length=")[1], 6.0)
+
+        h = 4.0
+        if "height=" in data: h = safe_float(data.split("height=")[1], 4.0)
+        elif "square" in d_type.lower(): h = w
+
+        if "rhombus" in d_type.lower():
+            offset = w * 0.3; A, B, C, D = (offset, 0), (w+offset, 0), (w, h), (0, h)
+        elif "kite" in d_type.lower():
+            A, B, C, D = (w/2, 0), (w, h/2), (w/2, h), (0, h/2)
+        else:
+            A, B, C, D = (0, 0), (w, 0), (w, h), (0, h)
+
         poly = patches.Polygon([A, B, C, D], closed=True, fill=False, edgecolor='black', linewidth=2); ax.add_patch(poly)
         ax.text(A[0]-0.5, A[1]-0.5, "A"); ax.text(B[0]+0.2, B[1]-0.5, "B"); ax.text(C[0]+0.2, C[1]+0.2, "C"); ax.text(D[0]-0.5, D[1]+0.2, "D")
         ax.text(w/2, -0.5, f"{w}cm", ha='center'); ax.text(-0.8, h/2, f"{h}cm", va='center', rotation=90)
         ax.set_xlim(-2, w+2); ax.set_ylim(-2, h+2)
+
     elif d_type and "circle" in d_type.lower():
         r = safe_float(data.split("radius=")[1], 3.0) if "radius=" in data else 3.0
         circle = patches.Circle((0, 0), r, fill=False, edgecolor='black', lw=2); ax.add_patch(circle)
         ax.text(-0.4, -0.4, 'O'); ax.text(r/2, -0.5, f'{r} cm', ha='center'); ax.set_xlim(-r-1, r+1); ax.set_ylim(-r-1, r+1)
+
     plt.tight_layout(); buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=150, bbox_inches='tight'); buf.seek(0); plt.close(fig); return buf
 
 def parse_diagram_tag(text):
