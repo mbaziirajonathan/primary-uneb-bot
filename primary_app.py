@@ -5,6 +5,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import math
+import time
+import hashlib
 from datetime import datetime
 from groq import Groq, RateLimitError
 from reportlab.pdfgen import canvas
@@ -119,16 +121,38 @@ def get_all_topics_text():
 def get_all_topics_for_subject(grade, subject):
     return [t["topic"] for t in PRIMARY_DB[f"PRIMARY_{grade[1:]}"][subject]]
 
-def smart_groq_call(client, system_prompt, user_prompt, max_tokens=4000):
-    models_to_try = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"] # AUTO SWITCH
-    for model in models_to_try:
-        try:
-            res = client.chat.completions.create(model=model, messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], temperature=0.3, max_tokens=max_tokens)
-            return res
-        except RateLimitError: continue
-        except Exception: continue
-    st.error("All Groq models busy."); return None
+if "cache" not in st.session_state: st.session_state.cache = {}
 
+def smart_groq_call(client, system_prompt, user_prompt, max_tokens=4000):
+    # 1. CHECK CACHE FIRST - saves tokens
+    cache_key = hashlib.md5((system_prompt + user_prompt).encode()).hexdigest()
+    if cache_key in st.session_state.cache:
+        return st.session_state.cache[cache_key]
+
+    models_to_try = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"]
+    
+    for attempt in range(3): # retry 3 times with backoff
+        for model in models_to_try:
+            try:
+                res = client.chat.completions.create(
+                    model=model, 
+                    messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], 
+                    temperature=0.3, 
+                    max_tokens=max_tokens
+                )
+                st.session_state.cache[cache_key] = res # save to cache
+                return res
+            except RateLimitError: 
+                wait = 2 ** attempt # 1s, 2s, 4s
+                time.sleep(wait)
+                continue
+            except Exception as e:
+                st.warning(f"{model} failed: {e}")
+                continue
+    
+    st.error("All Groq models busy. Try again in 30s or upgrade API key.")
+    return None
+    
 def get_client():
     try: return Groq(api_key=st.secrets["GROQ_API_KEY"])
     except: st.error("Add GROQ_API_KEY in Streamlit Secrets"); return None
