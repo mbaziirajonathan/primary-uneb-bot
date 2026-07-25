@@ -1,6 +1,9 @@
 streamlit
-pandas
-matplotlib
-numpy
 groq
+pandas
+numpy
+matplotlib
 reportlab
+gtts
+SpeechRecognition
+pyaudio
