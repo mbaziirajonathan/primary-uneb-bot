@@ -10,8 +10,7 @@ from groq import Groq, RateLimitError # <- Added RateLimitError
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 import streamlit.components.v1 as components
-from gtts import gTTS # <- Added for TTS
-import speech_recognition as sr # <- Added for STT
+
 # ===================== CONFIG =====================
 CONTACT = "256751040731"
 st.set_page_config(page_title="TEACHERK PRIMARY 2026 NCDC", page_icon="🐢", layout="wide")
@@ -496,18 +495,6 @@ def generate_pdf(content, title):
         if y < 50: c.showPage(); y = height - 50
     c.save(); buffer.seek(0)
     return buffer
-
-def text_to_speech(text):
-    try:
-        tts = gTTS(text=text, lang='en'); fp = io.BytesIO(); tts.write_to_fp(fp); fp.seek(0); return fp
-    except: return None
-
-def speech_to_text_from_audio(audio_bytes):
-    r = sr.Recognizer()
-    audio_file = io.BytesIO(audio_bytes)
-    with sr.AudioFile(audio_file) as source: audio = r.record(source)
-    try: return r.recognize_google(audio)
-    except: return ""
 
 # ===================== 4. PASSWORD =====================
 def check_password():
