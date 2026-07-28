@@ -1,23 +1,20 @@
 import streamlit as st
 import io, re, json, random
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib_venn import venn2, venn3
 import hashlib
 from datetime import datetime
 from groq import Groq, RateLimitError
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from reportlab.graphics import renderPDF
 from svglib.svglib import svg2rlg
+from reportlab.graphics import renderPDF
 
 CONTACT = "256751040731"
 st.set_page_config(page_title="TEACHERK PRIMARY 2026 NCDC", page_icon="🐢", layout="wide")
 st.warning("⚠️ **DISCLAIMER**: TEACHERK follows NCDC 2026 Uganda Primary Competency-Based Curriculum P4-P7.")
 
-# ===================== MASTER PROMPT =====================
+# ===================== MERGED MASTER PROMPT - OLD + SVG =====================
 MASTER_PROMPT = """
-You are an OFFICIAL UNEB PLE EXAMINER for Uganda P4-P7.
+You are an OFFICIAL UNEB PLE EXAMINER for Uganda P4-P7 following NCDC 2026 Competency-Based Curriculum.
 
 ROTATION RULE: You MUST use ALL topics provided for the grade. Spread questions evenly across topics in both Section A and Section B.
 
@@ -29,11 +26,31 @@ A. ENGLISH: TIME 2hr15min. SEC A: 30Q Grammar + 20Q Comprehension. SEC B: 5Q Com
 B. SCIENCE: TIME 2hr15min. SEC A: 40Q 1mark. SEC B: 15Q 4marks with a),b). TOTAL 100
 C. MATH/SST/CRE/IRE: SEC A: 20Q. SEC B: 40Q a,b,c. TOTAL 60Q. IF SST THEN Q21-Q40=SST, Q41-Q50=CRE, Q51-Q60=IRE
 
-FOR MATH ONLY: If question needs a diagram, START with [DIAGRAM: Topic="venn2", Measurements="a=10,b=15,ab=5", Question="In a class..."]
-SUPPORTED DIAGRAMS: Triangle, Rectangle, venn2, venn3. Venn must use simple numbers.
+DIAGRAM RULE: When user asks to "draw", "construct", "diagram", you MUST return a complete SVG inside [SVG]...[/SVG] tags. Then write the question below it.
+Use these exact SVG templates and only change measurements/labels:
+
+SQUARE: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><rect x="100" y="100" width="200" height="200" stroke="black" stroke-width="2" fill="none"/><text x="100" y="90" font-size="12">s</text><text x="300" y="90" font-size="12">s</text><text x="300" y="310" font-size="12">s</text><text x="100" y="310" font-size="12">s</text><text x="90" y="200" font-size="12">90°</text><text x="310" y="200" font-size="12">90°</text><text x="200" y="90" font-size="12">90°</text><text x="200" y="310" font-size="12">90°</text></svg>
+
+RECTANGLE: <svg viewBox="0 0 500 300" xmlns="http://www.w3.org/2000/svg"><text x="250" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><rect x="100" y="80" width="300" height="150" stroke="black" stroke-width="2" fill="none"/><text x="250" y="70" font-size="12" text-anchor="middle">l = 10cm</text><text x="90" y="155" font-size="12">w = 5cm</text></svg>
+
+CIRCLE: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><circle cx="200" cy="200" r="100" stroke="black" stroke-width="2" fill="none"/><line x1="200" y1="200" x2="300" y2="200" stroke="black" stroke-width="1.5" stroke-dasharray="4,2"/><text x="250" y="190" font-size="12">r</text><circle cx="200" cy="200" r="3" fill="black"/></svg>
+
+HEXAGON: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><polygon points="200,80 303.92,140 303.92,260 200,320 96.08,260 96.08,140" stroke="black" stroke-width="2" fill="none"/></svg>
+
+CYLINDER 3D: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><ellipse cx="200" cy="100" rx="80" ry="20" stroke="black" stroke-width="2" fill="none"/><ellipse cx="200" cy="250" rx="80" ry="20" stroke="black" stroke-width="2" fill="none" stroke-dasharray="4,2"/><line x1="120" y1="100" x2="120" y2="250" stroke="black" stroke-width="2"/><line x1="280" y1="100" x2="280" y2="250" stroke="black" stroke-width="2"/></svg>
+
+CONE 3D: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><ellipse cx="200" cy="300" rx="80" ry="20" stroke="black" stroke-width="2" fill="none"/><line x1="120" y1="300" x2="200" y2="100" stroke="black" stroke-width="2"/><line x1="280" y1="300" x2="200" y2="100" stroke="black" stroke-width="2"/></svg>
+
+60 DEGREE: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><line x1="100" y1="300" x2="300" y2="300" stroke="black" stroke-width="2"/><line x1="100" y1="300" x2="200" y2="126.8" stroke="black" stroke-width="2"/><path d="M 150 300 A 50 50 0 0 1 125 213.4" stroke="red" stroke-width="1.5" fill="none"/><text x="135" y="260" font-size="14" fill="red">60°</text></svg>
+
+120 DEGREE: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><line x1="200" y1="300" x2="350" y2="300" stroke="black" stroke-width="2"/><line x1="200" y1="300" x2="125" y2="170" stroke="black" stroke-width="2"/><path d="M 250 300 A 50 50 0 0 0 175 213.4" stroke="red" stroke-width="1.5" fill="none"/><text x="210" y="240" font-size="14" fill="red">120°</text></svg>
+
+VENN4: Use 4 rotated ellipses. VENN3: Use 3 circles.
+
+WRAP EVERY SVG WITH [SVG]...[/SVG]
 """
 
-# ===================== FULL NCDC 2026 DB - 100% RESTORED =====================
+# ===================== FULL DB RESTORED - 205 TOPICS =====================
 PRIMARY_DB = {
   "PRIMARY_4": {
     "Mathematics": [{"topic": "Set Concepts"}, {"topic": "Whole Numbers (Up to 99,999)"}, {"topic": "Operations on Whole Numbers"}, {"topic": "Fractions"}, {"topic": "Geometric Shapes and Symmetry"}, {"topic": "Measures (Time, Length, Mass, Capacity)"}, {"topic": "Money and Financial Literacy"}, {"topic": "Patterns and Sequences"}, {"topic": "Basic Data Handling"}],
@@ -71,85 +88,23 @@ PRIMARY_DB = {
 PRIMARY_CURRICULUM_MAP = {g.replace("PRIMARY_","P"): {s: [t["topic"] for t in topics] for s, topics in d.items()} for g,d in PRIMARY_DB.items()}
 def get_all_topics(grade): return [t["topic"] for sub in PRIMARY_DB[f"PRIMARY_{grade[1:]}"].values() for t in sub]
 
-# ===================== DIAGRAM GENERATOR: MATPLOTLIB + SVG =====================
-def draw_math_diagram(d_type, measurements, q_text):
-    diagrams = [] # store both png for streamlit and svg for pdf
-    try:
-        fig, ax = plt.subplots(figsize=(6, 5)); plt.axis('off')
-        ax.set_title(f"{q_text}", fontsize=10, fontweight='bold', pad=10, wrap=True)
-        data = measurements.lower() if measurements else ""
-        def sf(s, d):
-            try: return float(re.findall(r"[\d.]+", s)[0])
-            except: return d
-
-        is_venn = False
-        if "venn2" in d_type.lower():
-            is_venn = True
-            A = sf(data.split("a=")[1], 10) if "a=" in data else 10
-            B = sf(data.split("b=")[1], 15) if "b=" in data else 15
-            AB = sf(data.split("ab=")[1], 5) if "ab=" in data else 5
-            v = venn2(subsets = (max(1,A-AB), max(1,B-AB), max(1,AB)), set_labels = ('Set A', 'Set B'))
-            for patch in v.patches:
-                if patch: patch.set_alpha(0.4)
-        elif "venn3" in d_type.lower():
-            is_venn = True
-            v = venn3(subsets = (3,3,1,2,1,1,1), set_labels = ('A', 'B', 'C'))
-        elif "triangle" in d_type.lower():
-            base = sf(data.split("base=")[1], 8.0) if "base=" in data else 8.0
-            height = sf(data.split("height=")[1], base*0.7) if "height=" in data else base*0.7
-            triangle = patches.Polygon([(0, 0), (base, 0), (base/2, height)], closed=True, fill=False, edgecolor='black', linewidth=2); ax.add_patch(triangle)
-            ax.text(base/2, -0.5, f"Base = {base}", ha='center')
-        else: return None, None
-
-        plt.tight_layout()
-
-        # PNG for streamlit display
-        png_buf = io.BytesIO()
-        plt.savefig(png_buf, format='png', dpi=150, bbox_inches='tight')
-        png_buf.seek(0)
-
-        # SVG for PDF - crisp
-        svg_buf = io.BytesIO()
-        plt.savefig(svg_buf, format='svg', bbox_inches='tight')
-        svg_buf.seek(0)
-
-        plt.close(fig); return png_buf, svg_buf
-    except Exception as e:
-        return None, None
-
-def parse_tag(tag_str):
-    try:
-        tag_str = tag_str.replace("Topic=", '"Topic":').replace("Measurements=", '"Measurements":').replace("Question=", '"Question":')
-        return json.loads("{" + tag_str + "}")
-    except: return None
-
-def render_with_diagrams(text, subject):
+# ===================== SVG RENDERER =====================
+def render_with_svg(text):
     if not text: st.error("No response from AI. Try again."); return
-    if "### **Question" not in text: st.markdown(text); return
+    st.session_state['last_svgs'] = []
+    parts = re.split(r'(\[SVG\].*?\[/SVG\])', text, flags=re.DOTALL)
+    for part in parts:
+        if part.startswith("[SVG]"):
+            svg_code = part[5:-6]
+            st.session_state['last_svgs'].append(svg_code)
+            st.markdown(svg_code, unsafe_allow_html=True)
+        else:
+            st.markdown(part)
 
-    parts = re.split(r'(### \*\*Question \d+:)', text)
-    st.session_state['last_diagrams'] = [] # reset
-
-    for i in range(0, len(parts), 2):
-        header = parts[i] if i < len(parts) else ""
-        question = parts[i+1] if i+1 < len(parts) else ""
-
-        if "[DIAGRAM:" in header and subject == "Mathematics":
-            tag = header.split("[DIAGRAM:")[1].split("]")[0]
-            diagram_info = parse_tag(tag)
-            if diagram_info and diagram_info.get("Topic"):
-                png_buf, svg_buf = draw_math_diagram(diagram_info["Topic"], diagram_info.get("Measurements",""), diagram_info.get("Question","Question"))
-                if png_buf:
-                    st.image(png_buf, use_container_width=True)
-                    st.session_state['last_diagrams'].append(svg_buf) # save svg for pdf
-
-        clean_header = header.split("[DIAGRAM:")[0]
-        st.markdown(clean_header + question)
-
-# ===================== GROQ + PDF WITH SVG =====================
+# ===================== GROQ + PDF =====================
 if "cache" not in st.session_state:
     st.session_state.cache = {}
-    st.session_state['last_diagrams'] = []
+    st.session_state['last_svgs'] = []
 
 def smart_groq_call(client, system_prompt, user_prompt):
     cache_key = hashlib.md5((system_prompt + user_prompt).encode()).hexdigest()
@@ -157,7 +112,7 @@ def smart_groq_call(client, system_prompt, user_prompt):
     models_to_try = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
     for model in models_to_try:
         try:
-            res = client.chat.completions.create(model=model, messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], temperature=0.5, max_tokens=2000, timeout=60)
+            res = client.chat.completions.create(model=model, messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], temperature=0.5, max_tokens=2500, timeout=60)
             if res and res.choices[0].message.content:
                 st.session_state.cache[cache_key] = res; return res
         except RateLimitError: continue
@@ -173,31 +128,23 @@ def generate_pdf(content, title, subject, grade):
         year = datetime.now().year
         c.setFont("Helvetica-Bold", 12); c.drawCentredString(width/2, height-40, f"UNEB PRIMARY {grade[1:]} {subject.upper()} {year}")
         c.setFont("Helvetica", 10); c.drawCentredString(width/2, height-55, "Time Allowed: 2 hours 15 minutes")
-        c.setFont("Helvetica", 9)
-        c.drawString(40, height-75, "Candidate's name: ________________________________")
-        c.drawString(40, height-90, "School name: ____________________________________")
-
-        y = height - 120; diagram_index = 0
-        lines = content.split('\n')
-
-        for line in lines[:600]:
-            if "### **Question" in line and diagram_index < len(st.session_state['last_diagrams']):
-                # Embed SVG diagram above question
-                svg_buf = st.session_state['last_diagrams'][diagram_index]
-                if svg_buf:
-                    drawing = svg2rlg(svg_buf)
-                    if drawing:
-                        drawing.scale(0.8, 0.8)
-                        renderPDF.draw(drawing, c, 40, y-180)
-                        y -= 190
-                        diagram_index += 1
-
+        y = height - 80; svg_index = 0
+        for line in content.split('\n')[:600]:
+            if "[SVG]" in line and svg_index < len(st.session_state['last_svgs']):
+                svg_code = st.session_state['last_svgs'][svg_index]
+                svg_io = io.StringIO(svg_code)
+                drawing = svg2rlg(svg_io)
+                if drawing:
+                    drawing.scale(0.5, 0.5)
+                    renderPDF.draw(drawing, c, 40, y-200)
+                    y -= 210
+                    svg_index += 1
             if y < 50: c.showPage(); y = height - 50
-            c.drawString(40, y, line[:95]); y -= 14
-
+            clean_line = re.sub(r'\[/?SVG\]', '', line)
+            c.drawString(40, y, clean_line[:95]); y -= 14
         c.save(); buffer.seek(0); return buffer
     except Exception as e:
-        st.warning(f"PDF diagram embed failed: {e}")
+        st.warning(f"PDF SVG embed failed: {e}")
         return None
 
 # ===================== PASSWORD =====================
@@ -214,8 +161,8 @@ def check_password():
         st.stop()
 check_password()
 
-# ===================== MAIN APP =====================
-st.title("🐢 TEACHERK PRIMARY 2026 NCDC v4.1 SVG PDF")
+# ===================== MAIN APP - ALL TABS RESTORED =====================
+st.title("🐢 TEACHERK PRIMARY 2026 NCDC v4.6 MERGED")
 st.sidebar.success(f"Logged in as: {st.session_state.user_type}")
 
 grade = st.sidebar.selectbox("Class", ["P4","P5","P6","P7"])
@@ -231,9 +178,9 @@ def ask_ai(prompt, dl_name):
         res = smart_groq_call(client, MASTER_PROMPT, prompt)
     if res:
         answer = res.choices[0].message.content
-        render_with_diagrams(answer, subject)
+        render_with_svg(answer)
         pdf = generate_pdf(answer, dl_name, subject, grade)
-        if pdf: st.download_button("📥 Download PDF with SVG Diagrams", pdf, f"{dl_name}.pdf")
+        if pdf: st.download_button("📥 Download PDF with SVG", pdf, f"{dl_name}.pdf")
     else:
         st.error("AI Busy. Please wait 1 minute and retry.")
     st.markdown("---")
@@ -252,28 +199,29 @@ with tabs[1]:
 
 with tabs[2]:
     st.header("📝 HARD COMBINED MOCK PLE")
-    diff_map = {"P4": "0 EASY", "P5": "6 MEDIUM", "P6": "16 HARD", "P7": "18 HARD"}
     is_english = subject == "English Language"
     is_science = subject == "Integrated Science"
-    st.info(f"{grade} DIFFICULTY: {diff_map[grade]}. All {len(get_all_topics(grade))} topics rotated.")
+    diff_map = {"P4": "0 EASY", "P5": "6 MEDIUM", "P6": "16 HARD", "P7": "18 HARD"}
+    st.info(f"{grade} DIFFICULTY: {diff_map[grade]}. All {len(get_all_topics(grade))} topics will be rotated.")
 
     if st.button("Generate HARD COMBINED MOCK PLE", type="primary"):
-        all_topics = get_all_topics(grade); random.shuffle(all_topics)
+        all_topics = get_all_topics(grade)
+        random.shuffle(all_topics)
+
         if is_english:
             prompt = f"{MASTER_PROMPT}\nGenerate HARD UNEB PLE MOCK for {grade} ENGLISH. TIME: 2 hours 15 minutes. DIFFICULTY: {diff_map[grade]}. ROTATE ALL THESE TOPICS: {all_topics}. SECTION A: 30Q + 20Q. SECTION B: 5Q."
         elif is_science:
             prompt = f"{MASTER_PROMPT}\nGenerate HARD UNEB PLE MOCK for {grade} INTEGRATED SCIENCE. TIME: 2 hours 15 minutes. DIFFICULTY: {diff_map[grade]}. ROTATE ALL THESE TOPICS: {all_topics}. SECTION A: 40Q. SECTION B: 15Q with a), b)."
         else:
             sst_rule = "FOR SST: Q21-Q40=SST, Q41-Q50=CRE, Q51-Q60=IRE" if subject == "Social Studies (SST)" else ""
-            venn_rule = "For Mathematics Sets, MUST include 2 questions with [DIAGRAM: Topic=\"venn2\"]." if subject=="Mathematics" else ""
-            prompt = f"{MASTER_PROMPT}\nGenerate HARD MOCK for {grade} {subject}. DIFFICULTY: {diff_map[grade]}. ROTATE ALL THESE TOPICS: {all_topics}. SECTION A 20Q. SECTION B 40Q. {sst_rule} {venn_rule}"
+            prompt = f"{MASTER_PROMPT}\nGenerate HARD MOCK for {grade} {subject}. DIFFICULTY: {diff_map[grade]}. ROTATE ALL THESE TOPICS: {all_topics}. SECTION A 20Q. SECTION B 40Q. {sst_rule}"
         ask_ai(prompt, f"HARD_MOCK_{subject}_{grade}")
 
 with tabs[3]:
     st.header("➗ Mathematics Worked Examples")
     if subject == "Mathematics":
         if st.button("Generate 7 Hard Worked Examples", type="primary"):
-            ask_ai(f"{MASTER_PROMPT}\nGenerate 7 questions for {grade} Mathematics. ROTATE TOPICS: {get_all_topics(grade)}. For Sets topic, MUST use [DIAGRAM: Topic=\"venn2\"]. Each a),b). Then MARKING GUIDE.", f"Math_Work_{grade}")
+            ask_ai(f"{MASTER_PROMPT}\nGenerate 7 questions for {grade} Mathematics. ROTATE TOPICS: {get_all_topics(grade)}. Include SVG diagrams for Venn and Angles.", f"Math_Work_{grade}")
     else: st.info("Select Mathematics subject.")
 
 with tabs[4]:
