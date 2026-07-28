@@ -17,14 +17,62 @@ CONTACT = "256751040731"
 st.set_page_config(page_title="TEACHERK PRIMARY 2026 NCDC", page_icon="🐢", layout="wide")
 st.warning("⚠️ **DISCLAIMER**: TEACHERK follows NCDC 2026 Uganda Primary Competency-Based Curriculum P4-P7.")
 
+# ===================== MASTER PROMPT: SMART LIKE GPT-5 BUT NCDC LOCKED =====================
 MASTER_PROMPT = """
 You are TEACHERK, a Senior NCDC 2026 Uganda PLE Examiner and Master Teacher for PRIMARY P4-P7.
-RULE 1: ONLY ANSWER WHAT THE USER SPECIFICALLY REQUESTS. If they ask for "only scenario questions", do NOT give straight questions.
-RULE 2: If user asks for Ugandan examples, use markets, boda, shamba, ugsh, districts in Uganda.
-RULE 3: MATH UNITS RULE: Every final math answer MUST end with correct unit. "Therefore the... was [number][unit]"
-RULE 4: ENGLISH PUNCTUATION RULE: Every sentence must end with.? or!
-RULE 5: MARKING RULE: DEDUCT FOR NO UNITS AND JUMPED STEPS.
-DIAGRAM RULE: [DIAGRAM: Topic=Triangle, Measurements="Base=8cm, Angle=50deg", Question="Construct triangle ABC"]
+
+YOUR CORE MISSION:
+Teach exactly like a Ugandan PLE examiner. Every answer must help P4-P7 pupils pass UNEB. Use simple English, Ugandan examples, and NCDC 2026 Competency Based Curriculum.
+
+===================== RULE 1: CHAIN OF THOUGHT + EXACT ANSWER =====================
+First think step by step internally. Then output ONLY what the user requested.
+If user asks "explain only" → explain only.
+If user asks "5 scenario questions only" → give 5 scenario questions only. Do NOT add theory.
+
+===================== RULE 2: NCDC 2026 COMPETENCY FORMAT =====================
+Every explanation must have:
+1. **Definition in simple language** - P4 can understand
+2. **Key Competency**: What the pupil should be able to DO after this lesson
+3. **Ugandan Example**: Use boda, market, shamba, school, ugx, maize, Lake Victoria, districts
+4. **How PLE tests it**: 1 sample question style
+5. **Life Skill/Value**: Honesty, Cleanliness, Teamwork etc from NCDC
+
+===================== RULE 3: MATH RULES FOR PRIMARY =====================
+1. **UNITS RULE**: Every final answer MUST end with unit. "Therefore the length was 12cm."
+2. **STEPS RULE**: Show ALL steps. No jumping. Deduct 1 mark for missing steps in marking.
+3. **DIAGRAM RULE**: If topic is Geometry, Shapes, Measurement, ALWAYS add diagram tag:
+    [DIAGRAM: Topic=Triangle, Measurements="Base=8cm, Height=5cm", Question="Find area of triangle ABC"]
+4. **CONTEXT RULE**: Use money in UGX, distances in km, time in hours/minutes Ugandan context.
+
+===================== RULE 4: ENGLISH RULES FOR PRIMARY =====================
+1. **PUNCTUATION RULE**: Every sentence must end with.? or!
+2. **SIMPLE WORDS**: No big grammar. P4-P7 level.
+3. **SPELLING**: Correct spelling always.
+
+===================== RULE 5: QUESTION/ITEM GENERATION RULE =====================
+When generating questions for P4-P7:
+**SECTION A: 20 STRAIGHT QUESTIONS [40 MARKS]** - Short, factual, 2 marks each
+**SECTION B: SCENARIO-BASED QUESTIONS [60 MARKS]** - Use Ugandan story context
+Format each scenario like this:
+### **Question 21: Buying Maize in Gulu Market**
+Auntie Akello went to Gulu market with ugx 50,000. She bought 3 basins of maize at ugx 12,000 each.
+**TASK:** How much money remained?
+**SOLUTION:**
+Step 1: Cost of 3 basins = 3 x ugx 12,000 = ugx 36,000
+Step 2: Money remaining = ugx 50,000 - ugx 36,000 = ugx 14,000
+Therefore the money remaining was ugx 14,000.
+
+===================== RULE 6: MARKING RULE =====================
+You are a strict UNEB PLE Examiner.
+DEDUCT MARKS FOR: No units, No steps, Wrong spelling, Answer not in full sentence for English.
+GIVE FULL MARKS FOR: Correct answer + correct unit + all steps shown.
+
+===================== RULE 7: TOPIC ROTATION RULE =====================
+If user asks for "Mock PLE" or "Test from WHOLE SUBJECT", you MUST rotate questions across ALL topics in that subject for that class. Do NOT focus on only 1 topic.
+
+===================== RULE 8: PERSONALITY =====================
+Be patient, encouraging, like a Primary teacher. Use "Good job!", "Let's learn together".
+Always end with: "Do you want me to set 5 practice questions on this?"
 """
 
 # ===================== 2. DIAGRAM GENERATOR =====================
@@ -115,7 +163,7 @@ PRIMARY_CURRICULUM_MAP = {g.replace("PRIMARY_","P"): {s: [t["topic"] for t in to
 def get_all_topics_for_subject(grade, subject):
     return [t["topic"] for t in PRIMARY_DB[f"PRIMARY_{grade[1:]}"][subject]]
 
-# ===================== 4. SMART GROQ CALL - FIXED =====================
+# ===================== 4. SMART GROQ CALL - CROSSCHECKED + LOCAL MODE =====================
 if "cache" not in st.session_state: st.session_state.cache = {}
 
 def smart_groq_call(client, system_prompt, user_prompt, max_tokens=4000):
@@ -123,30 +171,36 @@ def smart_groq_call(client, system_prompt, user_prompt, max_tokens=4000):
     if cache_key in st.session_state.cache:
         return st.session_state.cache[cache_key]
 
-    # FIXED MODELS: 3.1-70b removed, added gemma fallback
     models_to_try = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]
 
-    # TRIM PROMPT TO AVOID 6000 TPM ERROR
     if len(user_prompt) > 4000:
         user_prompt = user_prompt[:4000] + "\n\n[Context trimmed to fit model limits]"
 
     for attempt in range(3):
         for model in models_to_try:
             try:
-                res = client.chat.completions.create(model=model, messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], temperature=0.3, max_tokens=max_tokens)
+                res = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}],
+                    temperature=0.3,
+                    max_tokens=max_tokens
+                )
                 st.session_state.cache[cache_key] = res
                 return res
             except RateLimitError:
                 time.sleep(2 ** attempt)
                 continue
-            except Exception:
+            except Exception as e:
                 continue
     st.error("All Groq models busy. Please wait 30s and try again.")
     return None
 
-def get_client():
+def get_client(deployment_mode):
+    if deployment_mode == "Local Server":
+        st.info("🏠 **LOCAL SERVER MODE**: Running offline. No API calls. Using cached responses only.")
+        return None
     try: return Groq(api_key=st.secrets["GROQ_API_KEY"])
-    except: st.error("Add GROQ_API_KEY in Streamlit Secrets"); return None
+    except: st.error("Add GROQ_API_KEY in Streamlit Secrets for Cloud Mode"); return None
 
 def generate_pdf(content, title):
     buffer = io.BytesIO()
@@ -154,7 +208,7 @@ def generate_pdf(content, title):
     width, height = A4
     c.setFont("Helvetica-Bold", 14); c.drawString(40, height-50, title)
     y = height - 80; c.setFont("Helvetica", 9)
-    for line in content.split('\n')[:200]:
+    for line in content.split('\n')[:250]:
         c.drawString(40, y, line[:95]); y -= 14
         if y < 50: c.showPage(); y = height - 50; c.setFont("Helvetica", 9)
     c.save(); buffer.seek(0); return buffer
@@ -177,6 +231,11 @@ check_password()
 st.title("🐢 TEACHERK PRIMARY 2026 NCDC")
 st.sidebar.success(f"Logged in as: {st.session_state.user_type}")
 
+# NEW: DEPLOYMENT MODE TOGGLE
+deployment_mode = st.sidebar.radio("Deployment Mode", ["Cloud API", "Local Server"], key="deploy_mode")
+if deployment_mode == "Local Server":
+    st.sidebar.warning("Offline Mode: Uses cache. For full AI, use Cloud API")
+
 grade = st.sidebar.selectbox("Class", ["P4","P5","P6","P7"], key="grade_select")
 subject = st.sidebar.selectbox("Subject", list(PRIMARY_CURRICULUM_MAP[grade].keys()), key="subject_select")
 st.sidebar.markdown("**Topic**")
@@ -185,35 +244,43 @@ topic = st.sidebar.selectbox("", topic_list, key="topic_select_scroll", label_vi
 
 ALL_SUBJECT_TOPICS = get_all_topics_for_subject(grade, subject)
 
-tabs = st.tabs(["AI Chat", "Theory", "MOCK PLE 50Q PAPER", "Math Work", "Teacher Tools"])
+tabs = st.tabs(["🔍 General Search", "📖 Theory", "📝 MOCK PLE 50Q PAPER", "➗ Math Work", "👩‍🏫 Teacher Tools"])
 
-def render_ask_bar(tab_name):
+def render_ask_bar(tab_name, extra_context=""):
     st.markdown("---")
-    q = st.text_input(f"🔍 Ask TeacherK Anything in {tab_name}", key=f"ask_{tab_name}")
-    if st.button("Ask", key=f"ask_btn_{tab_name}") and q:
-        client = get_client()
+    q = st.text_input(f"Ask TeacherK Anything in {tab_name}", key=f"ask_{tab_name}")
+    col1, col2 = st.columns([1,1])
+    with col1:
+        ask_btn = st.button("Ask", key=f"ask_btn_{tab_name}", type="primary")
+    with col2:
+        upload = st.file_uploader("Upload txt/pdf", type=["txt","pdf"], key=f"upload_{tab_name}")
+
+    if ask_btn and q:
+        client = get_client(deployment_mode)
+        if deployment_mode == "Local Server":
+            st.warning("Local Server: Please use Cloud API for new questions. Showing cached answers only.")
+            return
         if client:
-            # FIXED: Don't send full syllabus, only context needed
-            prompt = f"{MASTER_PROMPT}\n\nUser Context: {grade} {subject} Topic: {topic}\nUSER REQUEST: {q}\n\nFollow the request exactly. Do not add extra questions."
-            with st.spinner("Reasoning..."):
+            prompt = f"{MASTER_PROMPT}\n\nUser Context: {grade} {subject} Topic: {topic}\n{extra_context}\nUSER REQUEST: {q}\n\nFollow the request exactly. Use chain of thought then give final answer only."
+            with st.spinner("Thinking like a PLE Examiner..."):
                 res = smart_groq_call(client, MASTER_PROMPT, prompt)
                 if res:
                     answer = res.choices[0].message.content; st.markdown(answer)
                     diagram_info = parse_diagram_tag(answer)
                     if diagram_info: st.image(draw_math_diagram(diagram_info.get("Topic",""), diagram_info.get("Measurements",""), diagram_info.get("Question","")), use_container_width=True)
-                    st.download_button("📥 Download PDF", generate_pdf(answer, "Answer"), f"answer_{tab_name}.pdf", key=f"dl_{tab_name}")
+                    st.download_button("📥 Download PDF", generate_pdf(answer, f"Answer {tab_name}"), f"answer_{tab_name}.pdf", key=f"dl_{tab_name}")
 
 with tabs[0]:
-    st.header("AI Chat - Ask Anything")
-    st.info("Example: 'Give me only scenario based questions with Ugandan examples on Fractions'")
-    render_ask_bar("AI Chat")
+    st.header("🔍 General Search - Smart Chat")
+    st.info("Example: 'Give me only 5 scenario questions on Fractions with UGX' or 'Explain photosynthesis for P5'")
+    render_ask_bar("General Search")
 
 with tabs[1]:
-    st.header(f"Theory: {grade} {subject}")
+    st.header(f"📖 Theory: {grade} {subject}")
     if st.button("Generate Full Theory Notes for Selected Topic", key="theory_btn"):
-        client = get_client()
+        client = get_client(deployment_mode)
         if client:
-            prompt = f"{MASTER_PROMPT}\nGenerate detailed NCDC 2026 theory notes for {grade} {subject} Topic: {topic}. Include: Definition, Key Concepts, 3 Worked Examples, and Summary."
+            prompt = f"{MASTER_PROMPT}\nGenerate detailed NCDC 2026 theory notes for {grade} {subject} Topic: {topic}. Include: Definition, Key Competency, 3 Worked Examples, Ugandan Example, Life Skill, and Summary."
             with st.spinner("Generating Theory..."):
                 res = smart_groq_call(client, MASTER_PROMPT, prompt, max_tokens=3000)
                 if res: theory = res.choices[0].message.content; st.markdown(theory)
@@ -221,10 +288,10 @@ with tabs[1]:
     render_ask_bar("Theory")
 
 with tabs[2]:
-    st.header("MOCK PLE PAPER GENERATOR: ROTATES WHOLE SUBJECT")
+    st.header("📝 MOCK PLE PAPER GENERATOR: ROTATES WHOLE SUBJECT")
     num_q = st.slider("Number of Questions", 20, 50, 50, key="mock_num_q")
     if st.button("Generate MOCK PLE From WHOLE SUBJECT", key="mock_btn", type="primary"):
-        client = get_client()
+        client = get_client(deployment_mode)
         if client:
             prompt = f"{MASTER_PROMPT}\nGenerate a FULL MOCK PLE PAPER for {grade} {subject}. ROTATE QUESTIONS ACROSS ALL THESE TOPICS: {ALL_SUBJECT_TOPICS}. Do NOT focus on only {topic}.\n\nSTRICT STRUCTURE:\n**SECTION A: 20 STRAIGHT QUESTIONS [40 MARKS]**\nQ1.... Q20.\n\n**SECTION B: 30 SCENARIO-BASED QUESTIONS [60 MARKS]**\n### **Question 21: [Title with Ugandan Context]**\n[Scenario]\n**TASK:** [What to do]\n**SOLUTION:** Show all steps with units.\n... continue to Question {num_q}.\n\n**MARKING GUIDE**"
             with st.spinner("Generating 50Q Mock PLE from whole subject..."):
@@ -239,10 +306,10 @@ with tabs[2]:
     render_ask_bar("Mock PLE")
 
 with tabs[3]:
-    st.header("Mathematics Worked Examples")
+    st.header("➗ Mathematics Worked Examples")
     if subject == "Mathematics":
         if st.button("Generate 7 Worked Examples From WHOLE SUBJECT", key="mathwork_btn"):
-            client = get_client()
+            client = get_client(deployment_mode)
             if client:
                 prompt = f"{MASTER_PROMPT}\nGenerate 7 fully worked scenario-based math questions for {grade} {subject}. ROTATE ACROSS ALL THESE TOPICS: {ALL_SUBJECT_TOPICS}. EACH QUESTION MUST SHOW EVERY STEP. USE UGANDAN CONTEXT."
                 with st.spinner("Generating Math Work..."):
@@ -253,12 +320,12 @@ with tabs[3]:
     render_ask_bar("Math Work")
 
 with tabs[4]:
-    st.header("Teacher Tools - Automation Suite")
+    st.header("👩‍🏫 Teacher Tools - Automation Suite")
     st.markdown("---")
     st.subheader("1. Test / Exam Paper Generator - WHOLE SUBJECT")
     num_q_exam = st.slider("Number of Questions", 10, 50, 50, key="exam_num_q")
     if st.button("Generate Test Paper From WHOLE SUBJECT", key="exam_btn"):
-        client = get_client()
+        client = get_client(deployment_mode)
         if client:
             prompt = f"{MASTER_PROMPT}\nGenerate a Test for {grade} {subject}. ROTATE ACROSS ALL TOPICS: {ALL_SUBJECT_TOPICS}. Create {num_q_exam} questions. Follow user request on question type."
             with st.spinner("Generating Exam Paper..."):
@@ -271,10 +338,10 @@ with tabs[4]:
     student_answers = st.text_area("Or paste student answers here", height=150, key="mark_paste")
     marking_scheme = st.text_area("Paste Marking Scheme / Answers", height=100, key="mark_scheme")
     if st.button("Mark Work Now", key="mark_btn"):
-        client = get_client()
+        client = get_client(deployment_mode)
         if client and (uploaded_file or student_answers):
             content = uploaded_file.read().decode("utf-8") if uploaded_file else student_answers
-            prompt = f"You are a UNEB Examiner. Mark this {grade} {subject} work strictly. Deduct 1 mark for missing units and jumped steps.\n\nMARKING SCHEME:\n{marking_scheme}\n\nSTUDENT WORK:\n{content}\n\nProvide: Total Score, Breakdown, Comments."
+            prompt = f"You are a UNEB PLE Examiner. Mark this {grade} {subject} work strictly. Deduct 1 mark for missing units and jumped steps.\n\nMARKING SCHEME:\n{marking_scheme}\n\nSTUDENT WORK:\n{content}\n\nProvide: Total Score, Breakdown per question, Comments, and Advice."
             with st.spinner("Marking..."):
                 res = smart_groq_call(client, MASTER_PROMPT, prompt, max_tokens=2000)
                 if res: marked = res.choices[0].message.content; st.markdown(marked)
@@ -282,7 +349,7 @@ with tabs[4]:
     st.markdown("---")
     st.subheader("3. Scheme of Work Generator")
     if st.button("Generate Scheme of Work", key="scheme_btn"):
-        client = get_client()
+        client = get_client(deployment_mode)
         if client:
             prompt = f"Create a 1-week scheme of work for {grade} {subject} Topic: {topic} following NCDC 2026. Include: Topic, Competency, Learning Activities, Life Skills, Values, Assessment."
             with st.spinner("Generating..."):
