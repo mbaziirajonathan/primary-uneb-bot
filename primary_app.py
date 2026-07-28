@@ -8,6 +8,8 @@ from datetime import datetime
 from groq import Groq, RateLimitError
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
+from reportlab.graphics import renderPDF
+from svglib.svglib import svg2rlg
 
 CONTACT = "256751040731"
 st.set_page_config(page_title="TEACHERK PRIMARY 2026 NCDC", page_icon="🐢", layout="wide")
@@ -28,9 +30,7 @@ B. SCIENCE: TIME 2hr15min. SEC A: 40Q 1mark. SEC B: 15Q 4marks with a),b). TOTAL
 C. MATH/SST/CRE/IRE: SEC A: 20Q. SEC B: 40Q a,b,c. TOTAL 60Q. IF SST THEN Q21-Q40=SST, Q41-Q50=CRE, Q51-Q60=IRE
 
 FOR MATH ONLY: If question needs a diagram, START with [DIAGRAM: Topic="venn2", Measurements="a=10,b=15,ab=5", Question="In a class..."]
-If diagram generation fails, just write the question in text. DO NOT skip the question.
-SUPPORTED DIAGRAMS: Triangle, Rectangle, venn2, venn3. Keep them simple.
-NO DIAGRAMS FOR OTHER SUBJECTS.
+SUPPORTED DIAGRAMS: Triangle, Rectangle, venn2, venn3. Venn must use simple numbers.
 """
 
 # ===================== FULL NCDC 2026 DB - 100% RESTORED =====================
@@ -71,33 +71,51 @@ PRIMARY_DB = {
 PRIMARY_CURRICULUM_MAP = {g.replace("PRIMARY_","P"): {s: [t["topic"] for t in topics] for s, topics in d.items()} for g,d in PRIMARY_DB.items()}
 def get_all_topics(grade): return [t["topic"] for sub in PRIMARY_DB[f"PRIMARY_{grade[1:]}"].values() for t in sub]
 
-# ===================== DIAGRAM GENERATOR - FAIL SAFE =====================
+# ===================== DIAGRAM GENERATOR: MATPLOTLIB + SVG =====================
 def draw_math_diagram(d_type, measurements, q_text):
+    diagrams = [] # store both png for streamlit and svg for pdf
     try:
-        fig, ax = plt.subplots(figsize=(5.5, 4.5)); plt.axis('off')
+        fig, ax = plt.subplots(figsize=(6, 5)); plt.axis('off')
         ax.set_title(f"{q_text}", fontsize=10, fontweight='bold', pad=10, wrap=True)
         data = measurements.lower() if measurements else ""
         def sf(s, d):
             try: return float(re.findall(r"[\d.]+", s)[0])
             except: return d
-        unit = "cm" if "cm" in data else ""
 
+        is_venn = False
         if "venn2" in d_type.lower():
+            is_venn = True
             A = sf(data.split("a=")[1], 10) if "a=" in data else 10
             B = sf(data.split("b=")[1], 15) if "b=" in data else 15
             AB = sf(data.split("ab=")[1], 5) if "ab=" in data else 5
             v = venn2(subsets = (max(1,A-AB), max(1,B-AB), max(1,AB)), set_labels = ('Set A', 'Set B'))
+            for patch in v.patches:
+                if patch: patch.set_alpha(0.4)
         elif "venn3" in d_type.lower():
+            is_venn = True
             v = venn3(subsets = (3,3,1,2,1,1,1), set_labels = ('A', 'B', 'C'))
         elif "triangle" in d_type.lower():
             base = sf(data.split("base=")[1], 8.0) if "base=" in data else 8.0
             height = sf(data.split("height=")[1], base*0.7) if "height=" in data else base*0.7
             triangle = patches.Polygon([(0, 0), (base, 0), (base/2, height)], closed=True, fill=False, edgecolor='black', linewidth=2); ax.add_patch(triangle)
-            ax.text(base/2, -0.5, f"Base = {base}{unit}", ha='center')
-        else: return None
+            ax.text(base/2, -0.5, f"Base = {base}", ha='center')
+        else: return None, None
 
-        plt.tight_layout(); buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=120, bbox_inches='tight'); buf.seek(0); plt.close(fig); return buf
-    except: return None
+        plt.tight_layout()
+
+        # PNG for streamlit display
+        png_buf = io.BytesIO()
+        plt.savefig(png_buf, format='png', dpi=150, bbox_inches='tight')
+        png_buf.seek(0)
+
+        # SVG for PDF - crisp
+        svg_buf = io.BytesIO()
+        plt.savefig(svg_buf, format='svg', bbox_inches='tight')
+        svg_buf.seek(0)
+
+        plt.close(fig); return png_buf, svg_buf
+    except Exception as e:
+        return None, None
 
 def parse_tag(tag_str):
     try:
@@ -110,6 +128,8 @@ def render_with_diagrams(text, subject):
     if "### **Question" not in text: st.markdown(text); return
 
     parts = re.split(r'(### \*\*Question \d+:)', text)
+    st.session_state['last_diagrams'] = [] # reset
+
     for i in range(0, len(parts), 2):
         header = parts[i] if i < len(parts) else ""
         question = parts[i+1] if i+1 < len(parts) else ""
@@ -118,18 +138,22 @@ def render_with_diagrams(text, subject):
             tag = header.split("[DIAGRAM:")[1].split("]")[0]
             diagram_info = parse_tag(tag)
             if diagram_info and diagram_info.get("Topic"):
-                img = draw_math_diagram(diagram_info["Topic"], diagram_info.get("Measurements",""), diagram_info.get("Question","Question"))
-                if img: st.image(img, use_container_width=True)
+                png_buf, svg_buf = draw_math_diagram(diagram_info["Topic"], diagram_info.get("Measurements",""), diagram_info.get("Question","Question"))
+                if png_buf:
+                    st.image(png_buf, use_container_width=True)
+                    st.session_state['last_diagrams'].append(svg_buf) # save svg for pdf
 
         clean_header = header.split("[DIAGRAM:")[0]
         st.markdown(clean_header + question)
 
-# ===================== GROQ CALL =====================
-if "cache" not in st.session_state: st.session_state.cache = {}
+# ===================== GROQ + PDF WITH SVG =====================
+if "cache" not in st.session_state:
+    st.session_state.cache = {}
+    st.session_state['last_diagrams'] = []
+
 def smart_groq_call(client, system_prompt, user_prompt):
     cache_key = hashlib.md5((system_prompt + user_prompt).encode()).hexdigest()
     if cache_key in st.session_state.cache: return st.session_state.cache[cache_key]
-    if len(user_prompt) > 2500: user_prompt = user_prompt[:2500]
     models_to_try = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
     for model in models_to_try:
         try:
@@ -142,18 +166,39 @@ def smart_groq_call(client, system_prompt, user_prompt):
 def get_client():
     try: return Groq(api_key=st.secrets["GROQ_API_KEY"])
     except: st.error("GROQ_API_KEY missing in Secrets"); return None
+
 def generate_pdf(content, title, subject, grade):
     try:
         buffer = io.BytesIO(); c = canvas.Canvas(buffer, pagesize=A4); width, height = A4
         year = datetime.now().year
         c.setFont("Helvetica-Bold", 12); c.drawCentredString(width/2, height-40, f"UNEB PRIMARY {grade[1:]} {subject.upper()} {year}")
         c.setFont("Helvetica", 10); c.drawCentredString(width/2, height-55, "Time Allowed: 2 hours 15 minutes")
-        y = height - 80; c.setFont("Helvetica", 9)
-        for line in content.split('\n')[:550]:
+        c.setFont("Helvetica", 9)
+        c.drawString(40, height-75, "Candidate's name: ________________________________")
+        c.drawString(40, height-90, "School name: ____________________________________")
+
+        y = height - 120; diagram_index = 0
+        lines = content.split('\n')
+
+        for line in lines[:600]:
+            if "### **Question" in line and diagram_index < len(st.session_state['last_diagrams']):
+                # Embed SVG diagram above question
+                svg_buf = st.session_state['last_diagrams'][diagram_index]
+                if svg_buf:
+                    drawing = svg2rlg(svg_buf)
+                    if drawing:
+                        drawing.scale(0.8, 0.8)
+                        renderPDF.draw(drawing, c, 40, y-180)
+                        y -= 190
+                        diagram_index += 1
+
             if y < 50: c.showPage(); y = height - 50
             c.drawString(40, y, line[:95]); y -= 14
+
         c.save(); buffer.seek(0); return buffer
-    except: return None
+    except Exception as e:
+        st.warning(f"PDF diagram embed failed: {e}")
+        return None
 
 # ===================== PASSWORD =====================
 def check_password():
@@ -170,7 +215,7 @@ def check_password():
 check_password()
 
 # ===================== MAIN APP =====================
-st.title("🐢 TEACHERK PRIMARY 2026 NCDC")
+st.title("🐢 TEACHERK PRIMARY 2026 NCDC v4.1 SVG PDF")
 st.sidebar.success(f"Logged in as: {st.session_state.user_type}")
 
 grade = st.sidebar.selectbox("Class", ["P4","P5","P6","P7"])
@@ -188,7 +233,7 @@ def ask_ai(prompt, dl_name):
         answer = res.choices[0].message.content
         render_with_diagrams(answer, subject)
         pdf = generate_pdf(answer, dl_name, subject, grade)
-        if pdf: st.download_button("📥 Download PDF", pdf, f"{dl_name}.pdf")
+        if pdf: st.download_button("📥 Download PDF with SVG Diagrams", pdf, f"{dl_name}.pdf")
     else:
         st.error("AI Busy. Please wait 1 minute and retry.")
     st.markdown("---")
@@ -207,22 +252,20 @@ with tabs[1]:
 
 with tabs[2]:
     st.header("📝 HARD COMBINED MOCK PLE")
+    diff_map = {"P4": "0 EASY", "P5": "6 MEDIUM", "P6": "16 HARD", "P7": "18 HARD"}
     is_english = subject == "English Language"
     is_science = subject == "Integrated Science"
-    diff_map = {"P4": "0 EASY", "P5": "6 MEDIUM", "P6": "16 HARD", "P7": "18 HARD"}
-    st.info(f"{grade} DIFFICULTY: {diff_map[grade]}. All {len(get_all_topics(grade))} topics will be rotated.")
+    st.info(f"{grade} DIFFICULTY: {diff_map[grade]}. All {len(get_all_topics(grade))} topics rotated.")
 
     if st.button("Generate HARD COMBINED MOCK PLE", type="primary"):
-        all_topics = get_all_topics(grade)
-        random.shuffle(all_topics)
-
+        all_topics = get_all_topics(grade); random.shuffle(all_topics)
         if is_english:
             prompt = f"{MASTER_PROMPT}\nGenerate HARD UNEB PLE MOCK for {grade} ENGLISH. TIME: 2 hours 15 minutes. DIFFICULTY: {diff_map[grade]}. ROTATE ALL THESE TOPICS: {all_topics}. SECTION A: 30Q + 20Q. SECTION B: 5Q."
         elif is_science:
             prompt = f"{MASTER_PROMPT}\nGenerate HARD UNEB PLE MOCK for {grade} INTEGRATED SCIENCE. TIME: 2 hours 15 minutes. DIFFICULTY: {diff_map[grade]}. ROTATE ALL THESE TOPICS: {all_topics}. SECTION A: 40Q. SECTION B: 15Q with a), b)."
         else:
             sst_rule = "FOR SST: Q21-Q40=SST, Q41-Q50=CRE, Q51-Q60=IRE" if subject == "Social Studies (SST)" else ""
-            venn_rule = "For Mathematics, include 1-2 simple venn2 questions if topic is Sets. If diagram fails, write text version." if subject=="Mathematics" else ""
+            venn_rule = "For Mathematics Sets, MUST include 2 questions with [DIAGRAM: Topic=\"venn2\"]." if subject=="Mathematics" else ""
             prompt = f"{MASTER_PROMPT}\nGenerate HARD MOCK for {grade} {subject}. DIFFICULTY: {diff_map[grade]}. ROTATE ALL THESE TOPICS: {all_topics}. SECTION A 20Q. SECTION B 40Q. {sst_rule} {venn_rule}"
         ask_ai(prompt, f"HARD_MOCK_{subject}_{grade}")
 
@@ -230,7 +273,7 @@ with tabs[3]:
     st.header("➗ Mathematics Worked Examples")
     if subject == "Mathematics":
         if st.button("Generate 7 Hard Worked Examples", type="primary"):
-            ask_ai(f"{MASTER_PROMPT}\nGenerate 7 questions for {grade} Mathematics. ROTATE TOPICS: {get_all_topics(grade)}. For Sets topic, try 1 simple venn2. Each a),b). Then MARKING GUIDE.", f"Math_Work_{grade}")
+            ask_ai(f"{MASTER_PROMPT}\nGenerate 7 questions for {grade} Mathematics. ROTATE TOPICS: {get_all_topics(grade)}. For Sets topic, MUST use [DIAGRAM: Topic=\"venn2\"]. Each a),b). Then MARKING GUIDE.", f"Math_Work_{grade}")
     else: st.info("Select Mathematics subject.")
 
 with tabs[4]:
