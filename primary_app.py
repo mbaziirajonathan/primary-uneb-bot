@@ -24,15 +24,15 @@ def send_whatsapp_alert(message):
 # ===================== MASTER PROMPT - NCDC 2026 + UNEB COMPLIANT =====================
 MASTER_PROMPT = """
 YOU ARE: An Expert Educational Assistant AI for the Ugandan school system.
-YOUR ROLE: Help Teachers and DOS solve the 5 BIGGEST MONEY/INSPECTION PROBLEMS in Uganda.
+YOUR ROLE: Help Teachers and DOS solve the 7 BIGGEST MONEY/INSPECTION PROBLEMS in Uganda.
 
 STRICT OPERATIONAL STANDARDS:
 1. CURRICULUM: NCDC 2026 Revised Primary + NLSC. Competency-Based Learning + Activities of Integration.
-2. UNEB: All exams and marking guides must match PLE, UCE, UACE formats.
-3. DOCUMENTS: Lesson Plans must have Competencies, Outcomes, Activities, Evaluation. SOW must be TABLE by Week. Marking Guides must have competency marks.
-4. LOCALIZATION: British English. Use UGX, local markets, farming, Ugandan names and places.
+2. UNEB: All exams and marking guides must match PLE, UCE, UACE formats. Use UNEB trend data 2015-2025.
+3. DOCUMENTS: Lesson Plans must have Competencies, Outcomes, Activities, Evaluation. SOW must be TABLE by Week.
+4. LOCALIZATION: British English. Use UGX, local markets, farming, Ugandan names and places. Include Luganda SMS when asked.
 5. OUTPUT: Clean Markdown + Tables. Ready for Word/Excel. NO IMAGES.
-TONE: Professional DOS tone. End with "TEACHER NOTES: NCDC 2026 Competency Alignment".
+TONE: Professional DOS/Bursar tone. End with "TEACHER NOTES: NCDC 2026 Competency Alignment".
 """
 
 # ===================== FULL DB RESTORED - 205 TOPICS + CRE + IRE =====================
@@ -121,7 +121,7 @@ if st.session_state.user_type == "Admin":
 
 # ===================== SCHOOL USER INTERFACE =====================
 days_left = (st.session_state["expiry_date"] - datetime.now().date()).days
-st.title(f"👩‍🏫 TEACHERK PRO v8.2 - {st.session_state.school_name}")
+st.title(f"👩‍🏫 TEACHERK PRO v9.0 - {st.session_state.school_name}")
 st.sidebar.success(f"Licensed School: {st.session_state.school_name}"); st.sidebar.warning(f"License Expires in: {days_left} days")
 if days_left <= 7: st.sidebar.error(f"⚠️ License expires in {days_left} days. Contact Admin to Renew.")
 
@@ -129,7 +129,7 @@ grade = st.sidebar.selectbox("Select Class Level", ["P4","P5","P6","P7"])
 subject = st.sidebar.selectbox("Select Subject", list(PRIMARY_CURRICULUM_MAP[grade].keys()))
 topic = st.sidebar.selectbox("Select Topic", PRIMARY_CURRICULUM_MAP[grade][subject])
 
-tabs = st.tabs(["1. Test Paper", "2. Marking Guide", "3. Auto Marking", "4. Report Card", "5. Lesson/Scheme", "6. PLE Predictor", "7. Bulk Exam Generator", "8. Inspector File Pack", "9. Bulk Report Cards", "10. Result Analyzer"])
+tabs = st.tabs(["1. Test Paper", "2. Marking Guide", "3. Auto Marking", "4. Report Card", "5. Lesson/Scheme", "6. PLE Predictor", "7. Bulk Exam Generator", "8. Inspector File Pack", "9. Bulk Report Cards", "10. Result Analyzer", "11. Fee Defaulter Predictor", "12. UNEB Trend Analyzer"])
 
 def run_ai(task_name, prompt):
     log_action(task_name, grade, subject, topic); client = get_client();
@@ -167,7 +167,7 @@ with tabs[4]:
     with col2:
         if st.button("Generate Scheme of Work"): prompt = f"Create a full {term} Scheme of Work for {grade} {subject} as a TABLE. Columns: Week, Period, Topic/Sub-topic, Competencies, Learning Objectives, Methods, Instructional Materials, Remarks. Break down Topic: {topic}."; run_ai(f"SOW_{subject}_{term}", prompt)
 
-# ===================== 5 PAIN POINTS FEATURES =====================
+# ===================== 7 PAIN POINTS FEATURES =====================
 with tabs[5]:
     st.header("6. PLE FAILURE PREDICTOR + REMEDIAL GENERATOR")
     st.error("PROBLEM 1: PLE FAILURE = LOST PUPILS = LOST MONEY")
@@ -215,7 +215,6 @@ with tabs[8]:
             if res:
                 answer = res.choices[0].message.content
                 st.markdown(answer)
-                # Try to parse table to Excel
                 try:
                     lines = [l for l in answer.split('\n') if '|' in l]
                     data = []
@@ -229,7 +228,6 @@ with tabs[8]:
                 except: pass
                 pdf = generate_pdf(answer, f"BulkReports_{grade}_{term}"); st.download_button("📥 Download as PDF", pdf, f"BulkReports_{grade}_{term}.pdf")
 
-    # NEW: Export Button if data exists
     if st.session_state.bulk_report_data is not None:
         st.success("Report Cards Ready!")
         excel = generate_excel(st.session_state.bulk_report_data, "ReportCards")
@@ -247,17 +245,41 @@ with tabs[9]:
         with col1: st.metric("Total Pupils", len(df))
         with col2: st.metric("Subjects", len(df.columns)-1)
         with col3: st.metric("Class Average", f"{df.iloc[:,1:].mean().mean():.1f}%")
-
         content = df.to_csv(index=False)
         prompt = f"Act as DOS. Analyse these {grade} results and provide: 1. Top 10 Pupils 2. Bottom 10 Pupils at risk 3. Subject Performance Average 4. 3 Weakest Topics to Revise 5. Recommendations for Headteacher. Use tables. Data:\n{content}"
         run_ai(f"RESULT_ANALYSIS_{grade}", prompt)
 
+with tabs[10]:
+    st.header("11. FEE DEFAULTER PREDICTOR + SMS GENERATOR")
+    st.error("PROBLEM 6: FEE DEFAULT = SCHOOL CLOSURE. Can lose 20M/term")
+    st.info("Upload Fee Register CSV. Columns: Name, Class, ParentPhone, FeesPaid, TotalFees, Balance")
+    uploaded_fee = st.file_uploader("Upload Fee Register", type="csv", key="fee")
+    if uploaded_fee and st.button("Predict Defaulters & Generate SMS", type="primary"):
+        df = pd.read_csv(uploaded_fee)
+        st.dataframe(df.head())
+        total_debt = df['Balance'].sum()
+        st.metric("Total School Debt", f"UGX {total_debt:,}")
+        content = df.to_csv(index=False)
+        prompt = f"Act as School Bursar for {st.session_state.school_name}. Analyse this fee data. 1. List Top 50 defaulters at risk 2. Calculate recovery amount 3. Generate 3 SMS templates: Polite Reminder, Final Warning, and Luganda Version. Tone: Professional but firm. Data:\n{content}"
+        run_ai(f"FEE_PREDICTOR_{grade}", prompt)
+
+with tabs[11]:
+    st.header("12. UNEB TREND ANALYZER 2015-2025")
+    st.error("PROBLEM 7: TEACHING WRONG TOPICS = BAD PLE RESULTS")
+    st.info("Select Topic. Bot tells you how many times it appeared in PLE 2015-2025 + predicts 2026 chance")
+    selected_topic = st.selectbox("Select Topic to Analyse", PRIMARY_CURRICULUM_MAP[grade][subject])
+    if st.button("Analyse UNEB Trends", type="primary"):
+        prompt = f"Act as UNEB Chief Examiner. Analyse how many times '{selected_topic}' appeared in PLE {subject} exams from 2015 to 2025. Give frequency, question type, and predict 2026 chance %. Then generate 10 high-probability revision questions for {grade} with marking guide. Use Ugandan context."
+        run_ai(f"UNEB_TREND_{selected_topic}", prompt)
+
 # Add Pain Points Banner
 st.sidebar.markdown("---")
-st.sidebar.error("**5 BIGGEST SCHOOL PROBLEMS SOLVED:**")
+st.sidebar.error("**7 BIGGEST SCHOOL PROBLEMS SOLVED:**")
 st.sidebar.write("1. PLE Failure = Lost Fees")
 st.sidebar.write("2. Exam Setting = 2M/Term Cost")
 st.sidebar.write("3. Inspection Panic = Fines")
 st.sidebar.write("4. Marking Overload = 3 Weeks")
 st.sidebar.write("5. Report Card Errors = Reprints")
+st.sidebar.write("6. Fee Default = 20M Lost")
+st.sidebar.write("7. Teaching Wrong Topics")
 st.sidebar.caption(f"NCDC 2026 | Licensed to: {st.session_state.school_name} | Support: {CONTACT}")
