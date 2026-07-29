@@ -12,7 +12,7 @@ CONTACT = "256751040731"
 st.set_page_config(page_title="TEACHERK PRIMARY 2026 NCDC", page_icon="🐢", layout="wide")
 st.warning("⚠️ **DISCLAIMER**: TEACHERK follows NCDC 2026 Uganda Primary Competency-Based Curriculum P4-P7.")
 
-# ===================== MERGED MASTER PROMPT - OLD + SVG =====================
+# ===================== MERGED MASTER PROMPT - FIXED TEMPLATES =====================
 MASTER_PROMPT = """
 You are an OFFICIAL UNEB PLE EXAMINER for Uganda P4-P7 following NCDC 2026 Competency-Based Curriculum.
 
@@ -26,28 +26,32 @@ A. ENGLISH: TIME 2hr15min. SEC A: 30Q Grammar + 20Q Comprehension. SEC B: 5Q Com
 B. SCIENCE: TIME 2hr15min. SEC A: 40Q 1mark. SEC B: 15Q 4marks with a),b). TOTAL 100
 C. MATH/SST/CRE/IRE: SEC A: 20Q. SEC B: 40Q a,b,c. TOTAL 60Q. IF SST THEN Q21-Q40=SST, Q41-Q50=CRE, Q51-Q60=IRE
 
-DIAGRAM RULE: When user asks to "draw", "construct", "diagram", you MUST return a complete SVG inside [SVG]...[/SVG] tags. Then write the question below it.
-Use these exact SVG templates and only change measurements/labels:
+CRITICAL SVG RULES:
+1. Every SVG MUST start with style="background-color: #ffffff;" so it's visible on dark mode
+2. Label SIDES with measurements like "5cm", "10cm". DO NOT label corners with 90°.
+3. Use black text fill="#000" and black stroke="#000"
+4. Wrap EVERY SVG with [SVG]...[/SVG]
 
-SQUARE: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><rect x="100" y="100" width="200" height="200" stroke="black" stroke-width="2" fill="none"/><text x="100" y="90" font-size="12">s</text><text x="300" y="90" font-size="12">s</text><text x="300" y="310" font-size="12">s</text><text x="100" y="310" font-size="12">s</text><text x="90" y="200" font-size="12">90°</text><text x="310" y="200" font-size="12">90°</text><text x="200" y="90" font-size="12">90°</text><text x="200" y="310" font-size="12">90°</text></svg>
+EXACT SVG TEMPLATES - COPY THESE:
 
-RECTANGLE: <svg viewBox="0 0 500 300" xmlns="http://www.w3.org/2000/svg"><text x="250" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><rect x="100" y="80" width="300" height="150" stroke="black" stroke-width="2" fill="none"/><text x="250" y="70" font-size="12" text-anchor="middle">l = 10cm</text><text x="90" y="155" font-size="12">w = 5cm</text></svg>
+SQUARE: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" style="background-color: #ffffff;"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle" fill="#000">{title}</text><rect x="100" y="100" width="200" height="200" stroke="#000000" stroke-width="2" fill="none"/><text x="200" y="90" font-size="12" text-anchor="middle" fill="#000000">200mm</text><text x="310" y="200" font-size="12" fill="#000">200mm</text><text x="200" y="320" font-size="12" text-anchor="middle" fill="#000">200mm</text><text x="90" y="200" font-size="12" fill="#000">200mm</text></svg>
 
-CIRCLE: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><circle cx="200" cy="200" r="100" stroke="black" stroke-width="2" fill="none"/><line x1="200" y1="200" x2="300" y2="200" stroke="black" stroke-width="1.5" stroke-dasharray="4,2"/><text x="250" y="190" font-size="12">r</text><circle cx="200" cy="200" r="3" fill="black"/></svg>
+RECTANGLE: <svg viewBox="0 0 500 300" xmlns="http://www.w3.org/2000/svg" style="background-color: #ffffff;"><text x="250" y="30" font-family="sans-serif" font-size="14" text-anchor="middle" fill="#000">{title}</text><rect x="100" y="80" width="300" height="150" stroke="#000" stroke-width="2" fill="none"/><text x="250" y="70" font-size="12" text-anchor="middle" fill="#000">l = 10cm</text><text x="90" y="155" font-size="12" fill="#000">w = 5cm</text></svg>
 
-HEXAGON: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><polygon points="200,80 303.92,140 303.92,260 200,320 96.08,260 96.08,140" stroke="black" stroke-width="2" fill="none"/></svg>
+CIRCLE: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" style="background-color: #ffffff;"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle" fill="#000">{title}</text><circle cx="200" cy="200" r="100" stroke="#000" stroke-width="2" fill="none"/><line x1="200" y1="200" x2="300" y2="200" stroke="#000000" stroke-width="1.5" stroke-dasharray="4,2"/><text x="250" y="190" font-size="12" fill="#000">r = 100mm</text><circle cx="200" cy="200" r="3" fill="#000"/></svg>
 
-CYLINDER 3D: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><ellipse cx="200" cy="100" rx="80" ry="20" stroke="black" stroke-width="2" fill="none"/><ellipse cx="200" cy="250" rx="80" ry="20" stroke="black" stroke-width="2" fill="none" stroke-dasharray="4,2"/><line x1="120" y1="100" x2="120" y2="250" stroke="black" stroke-width="2"/><line x1="280" y1="100" x2="280" y2="250" stroke="black" stroke-width="2"/></svg>
+HEXAGON: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" style="background-color: #ffffff;"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle" fill="#000">{title}</text><polygon points="200,80 303.92,140 303.92,260 200,320 96.08,260 96.08,140" stroke="#000000" stroke-width="2" fill="none"/><text x="200" y="60" font-size="10" text-anchor="middle" fill="#000">120mm</text></svg>
 
-CONE 3D: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><ellipse cx="200" cy="300" rx="80" ry="20" stroke="black" stroke-width="2" fill="none"/><line x1="120" y1="300" x2="200" y2="100" stroke="black" stroke-width="2"/><line x1="280" y1="300" x2="200" y2="100" stroke="black" stroke-width="2"/></svg>
+CYLINDER 3D: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" style="background-color: #ffffff;"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle" fill="#000">{title}</text><ellipse cx="200" cy="100" rx="80" ry="20" stroke="#000000" stroke-width="2" fill="none"/><ellipse cx="200" cy="250" rx="80" ry="20" stroke="#000" stroke-width="2" fill="none" stroke-dasharray="4,2"/><line x1="120" y1="100" x2="120" y2="250" stroke="#000" stroke-width="2"/><line x1="280" y1="100" x2="280" y2="250" stroke="#000" stroke-width="2"/><text x="290" y="175" font-size="10" fill="#000">150mm</text></svg>
 
-60 DEGREE: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><line x1="100" y1="300" x2="300" y2="300" stroke="black" stroke-width="2"/><line x1="100" y1="300" x2="200" y2="126.8" stroke="black" stroke-width="2"/><path d="M 150 300 A 50 50 0 0 1 125 213.4" stroke="red" stroke-width="1.5" fill="none"/><text x="135" y="260" font-size="14" fill="red">60°</text></svg>
+CONE 3D: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" style="background-color: #ffffff;"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle" fill="#000">{title}</text><ellipse cx="200" cy="300" rx="80" ry="20" stroke="#000" stroke-width="2" fill="none"/><line x1="120" y1="300" x2="200" y2="100" stroke="#000" stroke-width="2"/><line x1="280" y1="300" x2="200" y2="100" stroke="#000" stroke-width="2"/><text x="140" y="200" font-size="10" fill="#000">200mm</text></svg>
 
-120 DEGREE: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle">{title}</text><line x1="200" y1="300" x2="350" y2="300" stroke="black" stroke-width="2"/><line x1="200" y1="300" x2="125" y2="170" stroke="black" stroke-width="2"/><path d="M 250 300 A 50 50 0 0 0 175 213.4" stroke="red" stroke-width="1.5" fill="none"/><text x="210" y="240" font-size="14" fill="red">120°</text></svg>
+60 DEGREE: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" style="background-color: #ffffff;"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle" fill="#000">{title}</text><line x1="100" y1="300" x2="300" y2="300" stroke="#000" stroke-width="2"/><line x1="100" y1="300" x2="200" y2="126.8" stroke="#000000" stroke-width="2"/><path d="M 150 300 A 50 50 0 0 1 125 213.4" stroke="#d9534f" stroke-width="1.5" fill="none"/><text x="135" y="260" font-size="14" fill="#d9534f">60°</text><text x="200" y="310" font-size="10" text-anchor="middle" fill="#000000">200mm</text></svg>
 
-VENN4: Use 4 rotated ellipses. VENN3: Use 3 circles.
+120 DEGREE: <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" style="background-color: #ffffff;"><text x="200" y="30" font-family="sans-serif" font-size="14" text-anchor="middle" fill="#000">{title}</text><line x1="200" y1="300" x2="350" y2="300" stroke="#000" stroke-width="2"/><line x1="200" y1="300" x2="125" y2="170" stroke="#000" stroke-width="2"/><path d="M 250 300 A 50 50 0 0 0 175 213.4" stroke="#d9534f" stroke-width="1.5" fill="none"/><text x="210" y="240" font-size="14" fill="#d9534f">120°</text><text x="275" y="310" font-size="10" text-anchor="middle" fill="#000">150mm</text></svg>
 
-WRAP EVERY SVG WITH [SVG]...[/SVG]
+VENN4: Use 4 rotated ellipses with white background
+VENN3: Use 3 circles with white background
 """
 
 # ===================== FULL DB RESTORED - 205 TOPICS =====================
@@ -96,6 +100,9 @@ def render_with_svg(text):
     for part in parts:
         if part.startswith("[SVG]"):
             svg_code = part[5:-6]
+            # Force white background if AI forgot
+            if 'background-color' not in svg_code:
+                svg_code = svg_code.replace('<svg ', '<svg style="background-color: #ffffff;" ')
             st.session_state['last_svgs'].append(svg_code)
             st.markdown(svg_code, unsafe_allow_html=True)
         else:
@@ -112,7 +119,7 @@ def smart_groq_call(client, system_prompt, user_prompt):
     models_to_try = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
     for model in models_to_try:
         try:
-            res = client.chat.completions.create(model=model, messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], temperature=0.5, max_tokens=2500, timeout=60)
+            res = client.chat.completions.create(model=model, messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], temperature=0.3, max_tokens=2500, timeout=60)
             if res and res.choices[0].message.content:
                 st.session_state.cache[cache_key] = res; return res
         except RateLimitError: continue
@@ -161,8 +168,8 @@ def check_password():
         st.stop()
 check_password()
 
-# ===================== MAIN APP - ALL TABS RESTORED =====================
-st.title("🐢 TEACHERK PRIMARY 2026 NCDC v4.6 MERGED")
+# ===================== MAIN APP =====================
+st.title("🐢 TEACHERK PRIMARY 2026 NCDC v4.7")
 st.sidebar.success(f"Logged in as: {st.session_state.user_type}")
 
 grade = st.sidebar.selectbox("Class", ["P4","P5","P6","P7"])
@@ -203,25 +210,18 @@ with tabs[2]:
     is_science = subject == "Integrated Science"
     diff_map = {"P4": "0 EASY", "P5": "6 MEDIUM", "P6": "16 HARD", "P7": "18 HARD"}
     st.info(f"{grade} DIFFICULTY: {diff_map[grade]}. All {len(get_all_topics(grade))} topics will be rotated.")
-
     if st.button("Generate HARD COMBINED MOCK PLE", type="primary"):
-        all_topics = get_all_topics(grade)
-        random.shuffle(all_topics)
-
-        if is_english:
-            prompt = f"{MASTER_PROMPT}\nGenerate HARD UNEB PLE MOCK for {grade} ENGLISH. TIME: 2 hours 15 minutes. DIFFICULTY: {diff_map[grade]}. ROTATE ALL THESE TOPICS: {all_topics}. SECTION A: 30Q + 20Q. SECTION B: 5Q."
-        elif is_science:
-            prompt = f"{MASTER_PROMPT}\nGenerate HARD UNEB PLE MOCK for {grade} INTEGRATED SCIENCE. TIME: 2 hours 15 minutes. DIFFICULTY: {diff_map[grade]}. ROTATE ALL THESE TOPICS: {all_topics}. SECTION A: 40Q. SECTION B: 15Q with a), b)."
-        else:
-            sst_rule = "FOR SST: Q21-Q40=SST, Q41-Q50=CRE, Q51-Q60=IRE" if subject == "Social Studies (SST)" else ""
-            prompt = f"{MASTER_PROMPT}\nGenerate HARD MOCK for {grade} {subject}. DIFFICULTY: {diff_map[grade]}. ROTATE ALL THESE TOPICS: {all_topics}. SECTION A 20Q. SECTION B 40Q. {sst_rule}"
+        all_topics = get_all_topics(grade); random.shuffle(all_topics)
+        if is_english: prompt = f"{MASTER_PROMPT}\nGenerate HARD UNEB PLE MOCK for {grade} ENGLISH. TIME: 2hr15min. DIFFICULTY: {diff_map[grade]}. ROTATE: {all_topics}. SEC A: 30Q + 20Q. SEC B: 5Q."
+        elif is_science: prompt = f"{MASTER_PROMPT}\nGenerate HARD UNEB PLE MOCK for {grade} INTEGRATED SCIENCE. TIME: 2hr15min. DIFFICULTY: {diff_map[grade]}. ROTATE: {all_topics}. SEC A: 40Q. SEC B: 15Q with a),b)."
+        else: sst_rule = "FOR SST: Q21-Q40=SST, Q41-Q50=CRE, Q51-Q60=IRE" if subject == "Social Studies (SST)" else ""; prompt = f"{MASTER_PROMPT}\nGenerate HARD MOCK for {grade} {subject}. DIFFICULTY: {diff_map[grade]}. ROTATE: {all_topics}. SEC A 20Q. SEC B 40Q. {sst_rule}"
         ask_ai(prompt, f"HARD_MOCK_{subject}_{grade}")
 
 with tabs[3]:
     st.header("➗ Mathematics Worked Examples")
     if subject == "Mathematics":
         if st.button("Generate 7 Hard Worked Examples", type="primary"):
-            ask_ai(f"{MASTER_PROMPT}\nGenerate 7 questions for {grade} Mathematics. ROTATE TOPICS: {get_all_topics(grade)}. Include SVG diagrams for Venn and Angles.", f"Math_Work_{grade}")
+            ask_ai(f"{MASTER_PROMPT}\nGenerate 7 questions for {grade} Mathematics. ROTATE TOPICS: {get_all_topics(grade)}. Include SVG diagrams.", f"Math_Work_{grade}")
     else: st.info("Select Mathematics subject.")
 
 with tabs[4]:
