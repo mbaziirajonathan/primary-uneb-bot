@@ -301,4 +301,4 @@ with tabs[4]:
             prompt = f"Create a full {term} Scheme of Work for {grade} {subject} as a TABLE. Columns: Week, Period, Topic/Sub-topic, Competencies, Learning Objectives, Methods, Instructional Materials, Remarks. Break down Topic: {topic}."
             run_ai(f"SOW_{subject}_{term}", prompt)
 
-st.sidebar.caption(f"NCDC 2026 | Licensed to: {st.session_state.school_name} | Support: {CONTACT}")
+st.sidebar.caption(f"NCDC 2026 | Licensed to: {st.session_state.school_name} | Support: {CONTACT}") 
