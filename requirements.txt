@@ -1,8 +1,4 @@
 streamlit
 groq
-pandas
-numpy
-matplotlib
 reportlab
-matplotlib-venn
-svglib
+requests
