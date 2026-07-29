@@ -125,7 +125,7 @@ def smart_groq_call(client, system_prompt, user_prompt):
     for model in models_to_try:
         try:
                        res = client.chat.completions.create(model=model, messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], temperature=0.3, max_tokens=2500, timeout=60)
-            if res and res.choices[0].message.content:
+                       if res and res.choices[0].message.content:
                 st.session_state.cache[cache_key] = res; return res
         except RateLimitError: continue
         except: continue
