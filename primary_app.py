@@ -1,4 +1,4 @@
-import streamlit as st
+limport streamlit as st
 import io, re, json, random
 import hashlib
 from datetime import datetime
@@ -126,7 +126,7 @@ def smart_groq_call(client, system_prompt, user_prompt):
         try:
                        res = client.chat.completions.create(model=model, messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], temperature=0.3, max_tokens=2500, timeout=60)
                        if res and res.choices[0].message.content:
-                st.session_state.cache[cache_key] = res; return res
+        st.session_state.cache[cache_key] = res; return res
         except RateLimitError: continue
         except: continue
     return None
