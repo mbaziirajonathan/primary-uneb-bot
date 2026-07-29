@@ -1,0 +1,4 @@
+.streamlit/secrets.toml
+dist/
+build/
+__pycache__/
