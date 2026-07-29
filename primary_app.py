@@ -118,17 +118,31 @@ if "cache" not in st.session_state:
     st.session_state.cache = {}
     st.session_state['last_svgs'] = []
 
-def smart_groq_call(client, system_prompt, user_prompt):
+ def smart_groq_call(client, system_prompt, user_prompt):
     cache_key = hashlib.md5((system_prompt + user_prompt).encode()).hexdigest()
-    if cache_key in st.session_state.cache: return st.session_state.cache[cache_key]
+    if cache_key in st.session_state.cache:
+        return st.session_state.cache[cache_key]
+
     models_to_try = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
     for model in models_to_try:
         try:
-                       res = client.chat.completions.create(model=model, messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}], temperature=0.3, max_tokens=2500, timeout=60)
-                       if res and res.choices[0].message.content:
-        st.session_state.cache[cache_key] = res; return res
-        except RateLimitError: continue
-        except: continue
+            res = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role":"system","content":system_prompt},
+                    {"role":"user","content":user_prompt}
+                ],
+                temperature=0.3,
+                max_tokens=2500,
+                timeout=60
+            )
+            if res and res.choices[0].message.content:
+                st.session_state.cache[cache_key] = res
+                return res
+        except RateLimitError:
+            continue
+        except Exception:
+            continue
     return None
 
 def get_client():
